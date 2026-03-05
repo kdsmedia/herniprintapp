@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "327513974065",
+    "project_id": "altomedia-8f793",
+    "storage_bucket": "altomedia-8f793.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:327513974065:android:fa4d02cfe23b4d3191bc10",
+        "android_client_info": {
+          "package_name": "com.altomedia.altogen"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "327513974065-7eaguiaborrp9vfdlof61244ko8dj60k.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDGmV5ZIVsR38zyLCQ6dbtP1Fw9dV36qRk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "327513974065-7eaguiaborrp9vfdlof61244ko8dj60k.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:327513974065:android:0d1baec623bb24ad91bc10",
+        "android_client_info": {
+          "package_name": "com.altomedia.herniprint"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "327513974065-7eaguiaborrp9vfdlof61244ko8dj60k.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDGmV5ZIVsR38zyLCQ6dbtP1Fw9dV36qRk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "327513974065-7eaguiaborrp9vfdlof61244ko8dj60k.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

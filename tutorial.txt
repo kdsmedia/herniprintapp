@@ -1,0 +1,328 @@
+================================================================================
+  HERNIPRINT — TUTORIAL BUILD LENGKAP
+  Versi: 2.0.0
+  Tanggal: Maret 2026
+  Pengembang: Alto Media Indonesia
+================================================================================
+
+DAFTAR ISI:
+  1. Persiapan Environment
+  2. Setup Proyek
+  3. Konfigurasi EAS
+  4. Build APK (Development)
+  5. Build APK (Preview/Testing)
+  6. Build AAB (Production/Play Store)
+  7. Testing di Device
+  8. Troubleshooting
+  9. Upload ke Google Play Store
+  10. Update Aplikasi
+
+================================================================================
+1. PERSIAPAN ENVIRONMENT
+================================================================================
+
+A) Install Node.js (Wajib v18 atau lebih baru):
+   - Download dari: https://nodejs.org/
+   - Verifikasi:
+     $ node --version    # Harus v18.x.x atau lebih
+     $ npm --version     # Harus v9.x.x atau lebih
+
+B) Install EAS CLI (Expo Application Services):
+   $ npm install -g eas-cli
+   
+   Verifikasi:
+   $ eas --version       # Harus v12.x.x atau lebih
+
+C) Buat Akun Expo (Gratis):
+   - Daftar di: https://expo.dev/signup
+   - Atau lewat terminal:
+     $ npx expo register
+
+D) Login ke Expo:
+   $ npx expo login
+   - Masukkan email dan password akun Expo Anda
+
+E) (Opsional) Install Android Studio:
+   - Hanya diperlukan jika ingin build lokal
+   - Download: https://developer.android.com/studio
+   - Install Android SDK 33+ via SDK Manager
+
+================================================================================
+2. SETUP PROYEK
+================================================================================
+
+A) Masuk ke direktori proyek:
+   $ cd herniprint-app
+
+B) Install semua dependencies:
+   $ npm install
+   
+   Ini akan menginstall ~50+ paket termasuk:
+   - expo (framework utama)
+   - react-native-ble-plx (Bluetooth BLE native)
+   - react-native-google-mobile-ads (AdMob)
+   - expo-camera, expo-image-picker, dll
+   
+   ⚠️ PENTING: Jika ada error "peer dependency", jalankan:
+   $ npm install --legacy-peer-deps
+
+C) Verifikasi instalasi:
+   $ npx expo doctor
+   
+   Semua item harus ✅. Jika ada ⚠️, ikuti saran yang diberikan.
+
+D) Update Expo Project ID:
+   $ eas init
+   
+   Ini akan membuat project di akun Expo Anda dan mengupdate
+   app.json dengan projectId yang benar.
+
+================================================================================
+3. KONFIGURASI EAS
+================================================================================
+
+File eas.json sudah disediakan dengan 3 profil build:
+
+┌─────────────┬──────────────────────────────────────────────┐
+│ Profil      │ Keterangan                                   │
+├─────────────┼──────────────────────────────────────────────┤
+│ development │ APK debug + dev client (untuk development)   │
+│ preview     │ APK release (untuk testing di device)        │
+│ production  │ AAB untuk upload ke Google Play Store        │
+└─────────────┴──────────────────────────────────────────────┘
+
+⚠️ PENTING — Kenapa harus EAS Build?
+   Proyek ini menggunakan native modules (react-native-ble-plx,
+   react-native-google-mobile-ads) yang TIDAK bisa dijalankan di
+   Expo Go. Harus di-build menggunakan EAS Build untuk menghasilkan
+   native binary yang menyertakan modul-modul tersebut.
+
+================================================================================
+4. BUILD APK — DEVELOPMENT (Untuk Pengembangan)
+================================================================================
+
+Build ini menghasilkan APK debug dengan dev client, berguna untuk
+development dan debugging.
+
+A) Jalankan build (Windows CMD, tanpa Git):
+   $ set EAS_NO_VCS=1 && eas build --platform android --profile development
+
+B) Tunggu proses build selesai (5-15 menit).
+   Build dilakukan di cloud server Expo.
+   Anda bisa melihat progress di: https://expo.dev/builds
+
+C) Setelah selesai, download APK:
+   - Link download akan muncul di terminal
+   - Atau buka: https://expo.dev → Project → Builds → Download
+
+D) Install APK ke device Android:
+   - Transfer file APK ke HP Android
+   - Buka file APK → Install
+   - Jika ada peringatan "Unknown source", izinkan instalasi
+
+E) Jalankan dev server:
+   $ npx expo start --dev-client
+   - Buka aplikasi HERNIPRINT yang sudah diinstall
+   - Scan QR code untuk koneksi
+
+================================================================================
+5. BUILD APK — PREVIEW (Untuk Testing)
+================================================================================
+
+Build ini menghasilkan APK release yang sudah dioptimasi,
+cocok untuk testing sebelum release ke Play Store.
+
+A) Jalankan build (Windows CMD, tanpa Git):
+   $ set EAS_NO_VCS=1 && eas build --platform android --profile preview
+
+B) Tunggu proses build (5-15 menit)
+
+C) Download dan install APK ke device:
+   $ eas build:list --platform android
+   - Salin URL APK → download → install ke HP
+
+   Atau langsung dari terminal (jika ada eas-cli terbaru):
+   $ eas build --platform android --profile preview --auto-submit=false
+
+D) Test semua fitur:
+   ✅ Bluetooth scan & connect
+   ✅ Cetak gambar dari galeri
+   ✅ Cetak gambar dari kamera
+   ✅ Cetak PDF
+   ✅ Cetak resi (isi form → preview → cetak)
+   ✅ Cetak label (tambah item → preview → cetak)
+   ✅ Generator QR Code & Barcode
+   ✅ Settings (nama toko, kontak, about, disclaimer)
+   ✅ AdMob (banner, interstitial)
+   ✅ Link Telegram
+
+================================================================================
+6. BUILD AAB — PRODUCTION (Untuk Google Play Store)
+================================================================================
+
+Build ini menghasilkan Android App Bundle (.aab) yang dioptimasi
+untuk distribusi melalui Google Play Store.
+
+A) Pastikan semua info sudah benar di app.json:
+   - "version": versi yang benar (misal "2.0.0")
+   - "android.versionCode": increment setiap upload
+   - "android.package": "com.herniprint.app"
+
+B) Jalankan build (Windows CMD, tanpa Git):
+   $ set EAS_NO_VCS=1 && eas build --platform android --profile production
+
+C) Tunggu proses build (10-20 menit)
+
+D) Download file .aab:
+   $ eas build:list --platform android --status=finished
+   - Download .aab dari link yang tersedia
+
+E) File .aab siap diupload ke Google Play Console
+
+================================================================================
+7. TESTING DI DEVICE
+================================================================================
+
+A) Minimum Android: 8.0 (Oreo, API 26)
+
+B) Izin yang diperlukan (akan diminta saat pertama kali):
+   - Bluetooth (untuk koneksi printer)
+   - Lokasi (diperlukan Android untuk scan Bluetooth)
+   - Kamera (untuk foto dokumen)
+   - Penyimpanan (untuk akses galeri)
+   - Kontak (untuk fitur isi data penerima)
+   - SMS (untuk fitur kirim notifikasi)
+
+C) Cara test koneksi printer:
+   1. Nyalakan printer thermal Bluetooth
+   2. Buka HERNIPRINT → tap ikon Bluetooth di header
+   3. Tunggu scan selesai → pilih printer → tap Hubungkan
+   4. Setelah terhubung (indicator hijau), coba cetak
+
+D) Cara test cetak:
+   1. Pilih tab (Gambar/PDF/Resi/QR)
+   2. Masukkan konten
+   3. Atur kertas (58mm/80mm) dan kontras
+   4. Tap tombol ⚡ untuk mencetak
+
+================================================================================
+8. TROUBLESHOOTING
+================================================================================
+
+❌ Error: "EAS Build requires a paid plan"
+   → EAS Build menyediakan 30 build gratis per bulan.
+   → Jika habis, upgrade ke plan $1/bulan atau build lokal.
+
+❌ Error: "react-native-ble-plx build failed"
+   → Pastikan minSdkVersion = 26 di app.json
+   → Jalankan: npx expo doctor → ikuti saran
+
+❌ Error: "AdMob no fill"
+   → Normal untuk testing. Iklan akan muncul setelah app published
+   → Gunakan test ad IDs saat development (sudah dikonfigurasi)
+
+❌ Bluetooth tidak menemukan printer
+   → Pastikan printer dalam mode pairing/discoverable
+   → Pastikan Bluetooth HP aktif
+   → Pastikan izin lokasi diberikan (wajib untuk BLE scan)
+   → Coba restart printer dan scan ulang
+
+❌ Cetak gagal / hasil rusak
+   → Atur kontras ke 120-150%
+   → Pastikan ukuran kertas sesuai (58mm atau 80mm)
+   → Coba cetak teks sederhana dulu sebelum gambar
+   → Beberapa printer butuh waktu; tunggu 5-10 detik
+
+❌ Build terlalu lama (>30 menit)
+   → Normal untuk build pertama kali
+   → Build berikutnya akan lebih cepat (cache)
+   → Cek status: https://status.expo.dev
+
+❌ "Module not found" error
+   → Jalankan: rm -rf node_modules && npm install
+   → Atau: npm install --legacy-peer-deps
+
+❌ Gradle build failed
+   → Pastikan Java 17 terinstall (untuk build lokal)
+   → Clear cache: cd android && ./gradlew clean
+
+================================================================================
+9. UPLOAD KE GOOGLE PLAY STORE
+================================================================================
+
+A) Buat akun Google Play Console:
+   - https://play.google.com/console
+   - Biaya pendaftaran: $25 (sekali bayar seumur hidup)
+
+B) Buat Aplikasi Baru:
+   1. Klik "Create app"
+   2. Nama: HERNIPRINT
+   3. Bahasa default: Indonesia
+   4. Tipe: App
+   5. Kategori: Tools / Productivity
+
+C) Lengkapi Store Listing:
+   - Deskripsi singkat: "Cetak resi, label, QR code ke printer thermal"
+   - Deskripsi lengkap: (tulis fitur-fitur lengkap)
+   - Screenshot: Ambil 4-8 screenshot dari device
+   - Icon: Upload icon 512x512 px
+   - Feature graphic: Buat banner 1024x500 px
+
+D) Upload AAB:
+   1. Masuk ke "Production" → "Create new release"
+   2. Upload file .aab dari build production
+   3. Release name: "2.0.0"
+   4. Release notes: "Versi pertama HERNIPRINT"
+
+E) Content Rating:
+   - Isi kuesioner (pilih IARC)
+   - Kategori: Everyone / Semua Umur
+
+F) Pricing & Distribution:
+   - Harga: Gratis (Free)
+   - Negara: Indonesia (atau pilih semua)
+
+G) Submit for Review:
+   - Klik "Submit" → tunggu review Google (1-7 hari)
+
+================================================================================
+10. UPDATE APLIKASI
+================================================================================
+
+A) Ubah versi di app.json:
+   - "version": "2.1.0" (increment)
+   - "android.versionCode": 2 (increment angka)
+
+B) Build ulang:
+   $ eas build --platform android --profile production
+
+C) Upload .aab baru ke Google Play Console:
+   - Buat release baru di track yang sama
+   - Upload .aab → submit review
+
+================================================================================
+
+RINGKASAN COMMAND PENTING (Windows CMD):
+================================================================================
+
+  npm install                                  # Install dependencies
+  npx expo doctor                              # Cek kesehatan proyek
+  eas init                                     # Inisialisasi project EAS
+
+  ⚠️ TANPA GIT/GITHUB — Tambahkan EAS_NO_VCS=1 sebelum setiap command eas build:
+
+  set EAS_NO_VCS=1 && eas build --platform android --profile development
+  set EAS_NO_VCS=1 && eas build --platform android --profile preview
+  set EAS_NO_VCS=1 && eas build --platform android --profile production
+
+  eas build:list                               # Lihat daftar build
+  npx expo start --dev-client                  # Jalankan dev server
+  eas submit --platform android                # Submit ke Play Store
+
+  (PowerShell alternatif):
+  $env:EAS_NO_VCS=1; eas build --platform android --profile preview
+
+================================================================================
+  Selamat membangun! 🎉
+  Pertanyaan? Hubungi @altomediaindonesia di Telegram
+================================================================================

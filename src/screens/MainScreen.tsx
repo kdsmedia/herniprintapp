@@ -5,14 +5,13 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image, ScrollView,
-  StyleSheet, Alert, Dimensions, Modal, FlatList, ActivityIndicator,
+  StyleSheet, Alert, Modal, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Print from 'expo-print';
-import * as FileSystem from 'expo-file-system';
 import Slider from '@react-native-community/slider';
 import QRCode from 'react-native-qrcode-svg';
 

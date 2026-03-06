@@ -1,157 +1,112 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Alert } from 'react-native';
-import { btManager, PrinterDevice, ConnectedPrinter } from '../utils/bluetooth';
-import * as Storage from '../utils/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PaperWidth } from '../constants/theme';
+import {
+  sendToPrinter as btSend,
+  isConnected as btIsConnected,
+  PrinterDevice,
+  connectToPrinter,
+  disconnectPrinter,
+} from '../utils/bluetooth';
+
+export interface LabelItem {
+  id: string;
+  name: string;
+  price: number;
+  qty: number;
+}
 
 interface AppState {
-  // Printer connection
+  // Connection
   isConnected: boolean;
-  printerName: string;
-  connectedPrinter: ConnectedPrinter | null;
-  isScanning: boolean;
-  foundDevices: PrinterDevice[];
-  
-  // Settings
+  connectedDeviceName: string;
+  connectDevice: (device: PrinterDevice) => Promise<void>;
+  disconnect: () => Promise<void>;
+
+  // Paper settings
   paperWidth: PaperWidth;
+  setPaperWidth: (w: PaperWidth) => void;
   contrast: number;
-  storeName: string;
-  storeContact: string;
-  
-  // Label items
-  labelItems: Storage.LabelItem[];
-  
-  // Actions
-  scanForPrinters: () => Promise<void>;
-  stopScan: () => void;
-  connectToPrinter: (deviceId: string) => Promise<void>;
-  disconnectPrinter: () => Promise<void>;
+  setContrast: (c: number) => void;
+
+  // Printing
   sendToPrinter: (data: Uint8Array) => Promise<void>;
-  setPaperWidth: (width: PaperWidth) => void;
-  setContrast: (value: number) => void;
-  setStoreName: (name: string) => void;
-  setStoreContact: (contact: string) => void;
+
+  // Label items
+  labelItems: LabelItem[];
   addLabelItem: () => void;
-  updateLabelItem: (id: string, field: keyof Storage.LabelItem, value: string | number) => void;
+  updateLabelItem: (id: string, field: keyof LabelItem, value: string | number) => void;
   removeLabelItem: (id: string) => void;
   clearLabelItems: () => void;
   getLabelTotal: () => number;
+
+  // Settings
+  storeName: string;
+  setStoreName: (n: string) => void;
+  storeContact: string;
+  setStoreContact: (c: string) => void;
 }
 
-const AppContext = createContext<AppState | null>(null);
+const AppContext = createContext<AppState>({} as AppState);
 
-export function useApp(): AppState {
-  const ctx = useContext(AppContext);
-  if (!ctx) throw new Error('useApp must be used within AppProvider');
-  return ctx;
-}
-
-export function AppProvider({ children }: { children: ReactNode }) {
+export function AppProvider({ children }: { children: React.ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
-  const [printerName, setPrinterName] = useState('');
-  const [connectedPrinter, setConnectedPrinter] = useState<ConnectedPrinter | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [foundDevices, setFoundDevices] = useState<PrinterDevice[]>([]);
-  const [paperWidth, _setPaperWidth] = useState<PaperWidth>(58);
-  const [contrast, _setContrast] = useState(120);
-  const [storeName, _setStoreName] = useState('HERNIPRINT');
-  const [storeContact, _setStoreContact] = useState('');
-  const [labelItems, setLabelItems] = useState<Storage.LabelItem[]>([]);
+  const [connectedDeviceName, setConnectedDeviceName] = useState('');
+  const [paperWidth, setPaperWidth] = useState<PaperWidth>(58);
+  const [contrast, setContrast] = useState(1.0);
+  const [labelItems, setLabelItems] = useState<LabelItem[]>([]);
+  const [storeName, setStoreName] = useState('HERNIPRINT');
+  const [storeContact, setStoreContact] = useState('');
 
-  // Load settings on mount
+  // Load saved settings
   useEffect(() => {
-    (async () => {
-      const pw = await Storage.getPaperWidth();
-      _setPaperWidth(pw as PaperWidth);
-      const ct = await Storage.getContrast();
-      _setContrast(ct);
-      const sn = await Storage.getStoreName();
-      _setStoreName(sn);
-      const sc = await Storage.getStoreContact();
-      _setStoreContact(sc);
-      const items = await Storage.loadLabelItems();
-      if (items.length > 0) setLabelItems(items);
-    })();
-  }, []);
-
-  // Save label items when changed
-  useEffect(() => {
-    Storage.saveLabelItems(labelItems);
-  }, [labelItems]);
-
-  const scanForPrinters = useCallback(async () => {
-    setFoundDevices([]);
-    setIsScanning(true);
-    try {
-      await btManager.scanForPrinters((device) => {
-        setFoundDevices((prev) => {
-          if (prev.find((d) => d.id === device.id)) return prev;
-          return [...prev, device];
-        });
-      }, 12000);
-    } catch (e: any) {
-      Alert.alert('Scan Error', e.message);
-    } finally {
-      setIsScanning(false);
-    }
-  }, []);
-
-  const stopScan = useCallback(() => {
-    btManager.stopScan();
-    setIsScanning(false);
-  }, []);
-
-  const connectToPrinter = useCallback(async (deviceId: string) => {
-    try {
-      const printer = await btManager.connect(deviceId);
-      setConnectedPrinter(printer);
-      setIsConnected(true);
-      setPrinterName(printer.device.name || 'Printer');
-      
-      btManager.onDisconnect(() => {
-        setIsConnected(false);
-        setConnectedPrinter(null);
-        setPrinterName('');
+    AsyncStorage.multiGet(['storeName', 'storeContact', 'paperWidth']).then((pairs) => {
+      pairs.forEach(([key, val]) => {
+        if (!val) return;
+        if (key === 'storeName') setStoreName(val);
+        if (key === 'storeContact') setStoreContact(val);
+        if (key === 'paperWidth') setPaperWidth(parseInt(val) as PaperWidth);
       });
+    });
+  }, []);
+
+  // Save settings
+  useEffect(() => {
+    AsyncStorage.setItem('storeName', storeName);
+  }, [storeName]);
+
+  useEffect(() => {
+    AsyncStorage.setItem('storeContact', storeContact);
+  }, [storeContact]);
+
+  useEffect(() => {
+    AsyncStorage.setItem('paperWidth', String(paperWidth));
+  }, [paperWidth]);
+
+  const connectDevice = useCallback(async (device: PrinterDevice) => {
+    try {
+      await connectToPrinter(device);
+      setIsConnected(true);
+      setConnectedDeviceName(device.name);
     } catch (e: any) {
-      Alert.alert('Koneksi Gagal', e.message);
       throw e;
     }
   }, []);
 
-  const disconnectPrinter = useCallback(async () => {
-    await btManager.disconnect();
+  const disconnect = useCallback(async () => {
+    await disconnectPrinter();
     setIsConnected(false);
-    setConnectedPrinter(null);
-    setPrinterName('');
+    setConnectedDeviceName('');
   }, []);
 
-  const sendToPrinter = useCallback(async (data: Uint8Array) => {
-    if (!isConnected) throw new Error('Printer tidak terhubung');
-    await btManager.sendData(data);
-  }, [isConnected]);
-
-  const setPaperWidth = useCallback((width: PaperWidth) => {
-    _setPaperWidth(width);
-    Storage.setPaperWidth(width);
+  const sendData = useCallback(async (data: Uint8Array) => {
+    if (!btIsConnected()) {
+      throw new Error('Printer tidak terhubung');
+    }
+    await btSend(data);
   }, []);
 
-  const setContrast = useCallback((value: number) => {
-    _setContrast(value);
-    Storage.setContrast(value);
-  }, []);
-
-  const setStoreName = useCallback((name: string) => {
-    _setStoreName(name);
-    Storage.setStoreName(name);
-  }, []);
-
-  const setStoreContact = useCallback((contact: string) => {
-    _setStoreContact(contact);
-    Storage.setStoreContact(contact);
-  }, []);
-
-  // Label item management
   const addLabelItem = useCallback(() => {
     if (labelItems.length >= 100) {
       Alert.alert('Batas Maksimal', 'Maksimal 100 item per label.');
@@ -159,17 +114,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     setLabelItems((prev) => [
       ...prev,
-      {
-        id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
-        name: '',
-        price: 0,
-        qty: 1,
-      },
+      { id: Date.now().toString(), name: '', price: 0, qty: 1 },
     ]);
   }, [labelItems.length]);
 
   const updateLabelItem = useCallback(
-    (id: string, field: keyof Storage.LabelItem, value: string | number) => {
+    (id: string, field: keyof LabelItem, value: string | number) => {
       setLabelItems((prev) =>
         prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
       );
@@ -181,26 +131,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLabelItems((prev) => prev.filter((item) => item.id !== id));
   }, []);
 
-  const clearLabelItems = useCallback(() => {
-    setLabelItems([]);
-  }, []);
+  const clearLabelItems = useCallback(() => setLabelItems([]), []);
 
-  const getLabelTotal = useCallback(() => {
-    return labelItems.reduce((sum, item) => sum + item.price * item.qty, 0);
-  }, [labelItems]);
+  const getLabelTotal = useCallback(
+    () => labelItems.reduce((sum, i) => sum + i.price * i.qty, 0),
+    [labelItems]
+  );
 
   return (
     <AppContext.Provider
       value={{
-        isConnected, printerName, connectedPrinter, isScanning, foundDevices,
-        paperWidth, contrast, storeName, storeContact,
+        isConnected,
+        connectedDeviceName,
+        connectDevice,
+        disconnect,
+        paperWidth,
+        setPaperWidth,
+        contrast,
+        setContrast,
+        sendToPrinter: sendData,
         labelItems,
-        scanForPrinters, stopScan, connectToPrinter, disconnectPrinter, sendToPrinter,
-        setPaperWidth, setContrast, setStoreName, setStoreContact,
-        addLabelItem, updateLabelItem, removeLabelItem, clearLabelItems, getLabelTotal,
+        addLabelItem,
+        updateLabelItem,
+        removeLabelItem,
+        clearLabelItems,
+        getLabelTotal,
+        storeName,
+        setStoreName,
+        storeContact,
+        setStoreContact,
       }}
     >
       {children}
     </AppContext.Provider>
   );
 }
+
+export const useApp = () => useContext(AppContext);

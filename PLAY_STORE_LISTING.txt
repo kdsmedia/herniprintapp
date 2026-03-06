@@ -1,0 +1,296 @@
+================================================================
+  HERNIPRINT — Google Play Console Listing Guide
+  Tinggal Copy-Paste ke Play Console!
+================================================================
+
+📌 URL Play Console: https://play.google.com/console
+
+================================================================
+1. APP DETAILS (Detail Aplikasi)
+================================================================
+
+App name (Nama Aplikasi):
+HERNIPRINT - Cetak Thermal & Warna
+
+Short description (Deskripsi Singkat) — max 80 karakter:
+Cetak gambar, PDF, struk, label, QR Code via Bluetooth & WiFi printer
+
+Full description (Deskripsi Lengkap) — max 4000 karakter:
+---MULAI COPY---
+HERNIPRINT — Aplikasi cetak profesional untuk semua jenis printer!
+
+Solusi lengkap pencetakan digital untuk UMKM, toko, kasir, dan kebutuhan pribadi. Mendukung printer thermal Bluetooth (58mm & 80mm) dan printer besar berwarna (Epson, Canon, HP, Brother) via WiFi/USB.
+
+🖨️ CETAK THERMAL (BLUETOOTH)
+• Cetak gambar dari galeri atau kamera
+• Konversi PDF ke gambar otomatis (instan!)
+• Cetak struk kasir dan resi pengiriman
+• Cetak label barang dengan harga
+• Generate & cetak QR Code dan Barcode
+• Pilihan kertas 58mm dan 80mm
+• Pengaturan posisi cetak: kiri, tengah, kanan
+• Kontrol ketajaman dan kontras
+• Koneksi Bluetooth stabil dan cepat
+
+🎨 CETAK PRINTER BESAR (WARNA)
+• Cetak warna penuh (Full Color) atau Hitam Putih
+• 10 ukuran kertas: A3, A4, A5, B5, Letter, Legal, 4×6, 5×7, 10×15, 13×18
+• 4 level kualitas: Draft (150 DPI), Normal (300 DPI), Tinggi (600 DPI), Foto (1200 DPI)
+• 7 jenis kertas: HVS, Matte, Glossy, Foto, Karton, Amplop, Label/Stiker
+• Orientasi Portrait dan Landscape
+• Border Normal, Sempit, atau Borderless
+• Skala: Pas Halaman, Isi Penuh, Ukuran Asli, atau Kustom (10%-400%)
+• Cetak dua sisi (Duplex) jika printer mendukung
+• Multi-copy dengan opsi Collate
+
+📄 KONVERSI PDF OTOMATIS
+• Upload PDF langsung dikonversi ke gambar
+• Preview langsung di layar sebelum cetak
+• Mendukung semua jenis file PDF
+• Proses cepat menggunakan native Android renderer
+
+📊 QR CODE & BARCODE
+• Generate QR Code dari teks apapun
+• Generate Barcode CODE128
+• Preview real-time saat mengetik
+• Cetak di thermal maupun printer besar
+
+🧾 STRUK & RESI
+• Template struk kasir profesional
+• Template resi pengiriman
+• Label barang dengan kalkulasi harga otomatis
+• Nama toko kustom muncul di struk
+
+✅ KEUNGGULAN
+• 100% GRATIS tanpa watermark
+• Bahasa Indonesia
+• Tidak perlu registrasi atau login
+• Semua proses di perangkat (tidak upload ke server)
+• Desain modern, gelap, dan mudah digunakan
+• Pengaturan toko untuk personalisasi struk
+• Progress cetak real-time
+
+Dikembangkan oleh Alto Media Indonesia untuk mendukung kemajuan UMKM Indonesia.
+
+Pertanyaan atau saran? Hubungi kami:
+Telegram: @altomediaindonesia
+---SELESAI COPY---
+
+
+================================================================
+2. GRAPHICS / ASET VISUAL
+================================================================
+
+Upload dari folder: assets/screenshots/
+
+Hi-res icon (512x512):
+→ Gunakan: assets/icon.png (akan di-resize otomatis)
+
+Feature graphic (1024x500):
+→ Upload: assets/screenshots/feature-graphic.png
+
+Screenshots (minimal 2, maksimal 8):
+→ Upload semua 4 file ini (urutan):
+  1. assets/screenshots/01-thermal.png   (1080x1920)
+  2. assets/screenshots/02-standard.png  (1080x1920)
+  3. assets/screenshots/03-features.png  (1080x1920)
+  4. assets/screenshots/04-free.png      (1080x1920)
+
+
+================================================================
+3. CATEGORIZATION (Kategori)
+================================================================
+
+Application type    : Applications (bukan Games)
+Category            : Tools (Alat) atau Productivity (Produktivitas)
+Tags (pilih 5)      :
+  ☑ Printing
+  ☑ Bluetooth
+  ☑ PDF
+  ☑ QR Code
+  ☑ Business
+
+
+================================================================
+4. CONTACT DETAILS (Kontak)
+================================================================
+
+Email               : altomediaindonesia@gmail.com
+Phone (opsional)    : (isi nomor HP kamu)
+Website (opsional)  : https://t.me/altomediaindonesia
+
+
+================================================================
+5. PRIVACY POLICY
+================================================================
+
+Jika belum punya URL privacy policy, buat halaman sederhana
+di GitHub Pages atau Google Sites. Isi copy-paste ini:
+
+---MULAI COPY PRIVACY POLICY---
+Kebijakan Privasi HERNIPRINT
+
+Terakhir diperbarui: Maret 2026
+
+HERNIPRINT ("Aplikasi") dikembangkan oleh Alto Media Indonesia.
+Aplikasi ini tersedia secara gratis.
+
+INFORMASI YANG KAMI KUMPULKAN
+Aplikasi ini memerlukan izin berikut:
+- Bluetooth dan Lokasi: Untuk mendeteksi dan menghubungkan printer thermal Bluetooth.
+- Penyimpanan: Untuk mengakses file gambar dan PDF yang akan dicetak.
+- Kamera: Untuk mengambil foto langsung dari aplikasi.
+
+PENGGUNAAN DATA
+- Kami TIDAK mengumpulkan data pribadi pengguna.
+- Kami TIDAK menyimpan atau mengirim dokumen/gambar yang Anda cetak ke server manapun.
+- Semua pemrosesan dokumen dilakukan secara lokal di perangkat Anda.
+
+IKLAN
+Aplikasi ini menggunakan Google AdMob untuk menampilkan iklan.
+Google mungkin mengumpulkan data tertentu sesuai dengan Kebijakan Privasi Google:
+https://policies.google.com/privacy
+
+PERUBAHAN
+Kami dapat memperbarui kebijakan privasi ini sewaktu-waktu.
+Perubahan akan berlaku segera setelah dipublikasikan.
+
+KONTAK
+Jika ada pertanyaan, hubungi kami di:
+Telegram: @altomediaindonesia
+Email: altomediaindonesia@gmail.com
+---SELESAI COPY PRIVACY POLICY---
+
+Setelah dipublish, masukkan URL-nya ke kolom Privacy Policy di Play Console.
+
+
+================================================================
+6. CONTENT RATING (Rating Konten)
+================================================================
+
+Buka: App Content → Content rating → Start questionnaire
+
+Pilihan jawaban:
+
+Category: Utility, Productivity, Communication, or Other
+☑ Does not contain violence              → No
+☑ Does not contain sexual content         → No
+☑ Does not contain profanity              → No
+☑ Does not contain controlled substances  → No
+☑ Does not share user location            → No
+☑ Does not allow purchases                → No
+☑ Does not allow user interaction         → No
+☑ Contains ads                            → YES ✅
+
+Hasil rating: Rated for Everyone (Semua Umur)
+
+
+================================================================
+7. TARGET AUDIENCE (Audiens Target)
+================================================================
+
+Target age group    : 18 and over ✅
+                      (jangan pilih under 13 untuk menghindari COPPA)
+App appeals to children: No
+
+
+================================================================
+8. DATA SAFETY
+================================================================
+
+Buka: App Content → Data safety
+
+Does your app collect or share user data?
+→ YES (karena AdMob)
+
+Data collected:
+☑ Device or other IDs (oleh AdMob)
+  - Collected: Yes
+  - Shared: Yes (with Google for ads)
+  - Required: Yes
+  - Purpose: Advertising
+
+Data NOT collected:
+☐ Personal info (name, email, etc.)
+☐ Location
+☐ Financial info
+☐ Messages
+☐ Photos/videos (hanya akses lokal, tidak di-upload)
+☐ Files (hanya akses lokal, tidak di-upload)
+
+Encryption:
+☑ Data is encrypted in transit
+
+Data deletion:
+☑ Users can request data deletion
+  → Instruksi: Hapus aplikasi dari perangkat
+
+
+================================================================
+9. ADS DECLARATION (Deklarasi Iklan)
+================================================================
+
+Does your app contain ads?
+→ YES ✅
+
+Ad format:
+☑ Banner ads
+☑ Interstitial ads
+☑ Rewarded ads
+☑ Open app ads
+
+
+================================================================
+10. APP ACCESS (Akses Aplikasi)
+================================================================
+
+Does your app require special access?
+→ No (All functionality is available without login)
+
+
+================================================================
+11. RELEASE (Rilis)
+================================================================
+
+Track               : Internal Testing (dulu), lalu Production
+Countries           : Indonesia (utama), atau All Countries
+Rollout percentage  : 100%
+
+Upload file:
+- APK  → untuk Internal Testing (dari EAS preview build)
+- AAB  → untuk Production (dari EAS production build)
+
+File keystore:
+- herniprintapp-keystore.jks
+- Alias: herniprintapp
+- Password: Kdsmedia@123
+
+
+================================================================
+12. STORE LISTING CHECKLIST
+================================================================
+
+Sebelum publish, pastikan semua ✅:
+
+☐ App name sudah diisi
+☐ Short description sudah diisi
+☐ Full description sudah diisi
+☐ App icon (512x512) sudah upload
+☐ Feature graphic (1024x500) sudah upload
+☐ Minimal 2 screenshots sudah upload
+☐ Category sudah dipilih
+☐ Contact email sudah diisi
+☐ Privacy policy URL sudah diisi
+☐ Content rating questionnaire selesai
+☐ Target audience sudah diisi
+☐ Data safety form selesai
+☐ Ads declaration selesai
+☐ AAB/APK sudah upload ke release track
+☐ Countries/regions sudah dipilih
+☐ Review dan Submit!
+
+
+================================================================
+  Selamat! Tinggal tunggu review Google (biasanya 1-7 hari).
+  Hubungi @altomediaindonesia di Telegram jika butuh bantuan.
+================================================================

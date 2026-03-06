@@ -6,6 +6,7 @@ import {
   sendToPrinter as btSend,
   isConnected as btIsConnected,
   PrinterDevice,
+  PrintProgressCallback,
   connectToPrinter,
   disconnectPrinter,
 } from '../utils/bluetooth';
@@ -31,7 +32,7 @@ interface AppState {
   setContrast: (c: number) => void;
 
   // Printing
-  sendToPrinter: (data: Uint8Array) => Promise<void>;
+  sendToPrinter: (data: Uint8Array, onProgress?: PrintProgressCallback) => Promise<void>;
 
   // Label items
   labelItems: LabelItem[];
@@ -100,11 +101,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setConnectedDeviceName('');
   }, []);
 
-  const sendData = useCallback(async (data: Uint8Array) => {
+  const sendData = useCallback(async (data: Uint8Array, onProgress?: PrintProgressCallback) => {
     if (!btIsConnected()) {
       throw new Error('Printer tidak terhubung');
     }
-    await btSend(data);
+    await btSend(data, onProgress);
   }, []);
 
   const addLabelItem = useCallback(() => {

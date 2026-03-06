@@ -200,7 +200,12 @@ export async function disconnectPrinter(): Promise<void> {
 }
 
 // ─── Send Data to Printer ─────────────────────────────────
-export async function sendToPrinter(data: Uint8Array): Promise<void> {
+export type PrintProgressCallback = (sent: number, total: number) => void;
+
+export async function sendToPrinter(
+  data: Uint8Array,
+  onProgress?: PrintProgressCallback,
+): Promise<void> {
   if (!currentConnection?.isConnected || !currentConnection.characteristic) {
     throw new Error('Printer tidak terhubung. Hubungkan printer terlebih dahulu.');
   }
@@ -208,8 +213,9 @@ export async function sendToPrinter(data: Uint8Array): Promise<void> {
   const char = currentConnection.characteristic;
   const chunkSize = 128; // Safe BLE MTU chunk size
   const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const total = data.length;
 
-  for (let i = 0; i < data.length; i += chunkSize) {
+  for (let i = 0; i < total; i += chunkSize) {
     const chunk = data.slice(i, i + chunkSize);
 
     // Convert to base64 for BLE write
@@ -219,6 +225,11 @@ export async function sendToPrinter(data: Uint8Array): Promise<void> {
       await char.writeWithoutResponse(base64);
     } else {
       await char.writeWithResponse(base64);
+    }
+
+    // Report progress
+    if (onProgress) {
+      onProgress(Math.min(i + chunkSize, total), total);
     }
 
     // Small delay between chunks to prevent buffer overflow

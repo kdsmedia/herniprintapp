@@ -26,6 +26,7 @@ import {
   requestBluetoothPermissions, scanForPrinters, stopScan, PrinterDevice,
 } from '../utils/bluetooth';
 import AdBanner from '../components/AdBanner';
+import PrintProgress from '../components/PrintProgress';
 
 type TabId = 'img' | 'pdf' | 'resi' | 'code';
 type ResiMode = 'resi' | 'label';
@@ -56,6 +57,12 @@ export default function MainScreen() {
   const [codeType, setCodeType] = useState<CodeType>('qr');
   const [printing, setPrinting] = useState(false);
   const [connModal, setConnModal] = useState(false);
+
+  // Print progress state
+  const [printProgress, setPrintProgress] = useState(0);
+  const [printStatus, setPrintStatus] = useState('');
+  const [printStage, setPrintStage] = useState<'prepare' | 'sending' | 'done' | 'error'>('prepare');
+  const [showProgress, setShowProgress] = useState(false);
 
   // Image/PDF
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -140,38 +147,84 @@ export default function MainScreen() {
     } finally { setConnecting(null); }
   };
 
+  // ─── Print progress helpers ─────────────────────────────
+  const startProgress = (status: string) => {
+    setPrintProgress(0);
+    setPrintStatus(status);
+    setPrintStage('prepare');
+    setShowProgress(true);
+    setPrinting(true);
+  };
+
+  const onSendProgress = (sent: number, total: number) => {
+    const pct = Math.round((sent / total) * 100);
+    setPrintProgress(pct);
+    setPrintStage('sending');
+    setPrintStatus('Mengirim ke printer...');
+  };
+
+  const finishProgress = (success: boolean, msg?: string) => {
+    setPrintProgress(100);
+    setPrintStage(success ? 'done' : 'error');
+    setPrintStatus(success ? 'Berhasil dicetak!' : (msg || 'Gagal mencetak'));
+    setTimeout(() => {
+      setShowProgress(false);
+      setPrinting(false);
+    }, success ? 1500 : 2500);
+  };
+
   // ─── PRINT ─────────────────────────────────────────────
   const handlePrint = async () => {
     if (!isConnected) return setConnModal(true);
-    setPrinting(true);
+
     try {
       const dots = PAPER[paperWidth].dots;
 
       if (tab === 'img') {
         if (!imageUri) return Alert.alert('Pilih Gambar');
+        startProgress('Memproses gambar...');
+        setPrintProgress(10);
+
         const { pixels, width, height } = await processImageForPrint(imageUri, dots);
-        await sendToPrinter(pixelsToEscPos(pixels, width, height, contrast));
+        setPrintProgress(40);
+        setPrintStatus('Mengkonversi untuk printer...');
+
+        const escData = pixelsToEscPos(pixels, width, height, contrast);
+        setPrintProgress(50);
+        setPrintStage('sending');
+        setPrintStatus('Mengirim ke printer...');
+
+        await sendToPrinter(escData, (sent, total) => {
+          const pct = 50 + Math.round((sent / total) * 50);
+          setPrintProgress(pct);
+        });
+        finishProgress(true);
       }
       else if (tab === 'pdf') {
-        if (pdfUri) {
-          // PDF: use Android print dialog
-          // On Android, Print.printAsync expects a content URI or a file URI that the system can access.
-          // DocumentPicker might return a file URI that needs to be copied to a more accessible location
-          // or handled differently for system printing.
-          // For now, we assume the URI from DocumentPicker is directly usable.
-          // If this fails, further investigation into file access permissions or URI conversion is needed.
-          try {
-            await Print.printAsync({ uri: pdfUri });
-          } catch (printError: any) {
-            Alert.alert('Gagal Mencetak PDF', `Terjadi kesalahan saat mencetak: ${printError.message}. Pastikan layanan cetak diaktifkan dan file dapat diakses.`);
-            console.error('PDF Print Error:', printError);
-          }
-        } else {
+        if (!pdfUri) {
           Alert.alert('Pilih File', 'Unggah PDF terlebih dahulu.');
           return;
         }
+        startProgress('Membuka dokumen PDF...');
+        setPrintProgress(30);
+        try {
+          setPrintStatus('Mencetak via sistem...');
+          setPrintProgress(60);
+          await Print.printAsync({ uri: pdfUri });
+          finishProgress(true);
+        } catch (printError: any) {
+          if (!printError.message?.includes('cancel')) {
+            finishProgress(false, `Gagal: ${printError.message}`);
+          } else {
+            setShowProgress(false);
+            setPrinting(false);
+          }
+        }
       }
       else if (tab === 'resi') {
+        startProgress(resiMode === 'resi' ? 'Menyiapkan resi...' : 'Menyiapkan label...');
+        setPrintProgress(20);
+
         const lines: ReceiptLine[] = [];
         if (resiMode === 'resi') {
           lines.push(
@@ -207,19 +260,51 @@ export default function MainScreen() {
           }
           lines.push(buildSeparator(paperWidth, '='), { text: 'Terima kasih!', align: 'center' });
         }
-        await sendToPrinter(buildReceiptCommands(lines));
+
+        setPrintProgress(40);
+        const escData = buildReceiptCommands(lines);
+        setPrintProgress(50);
+        setPrintStage('sending');
+        setPrintStatus('Mengirim ke printer...');
+
+        await sendToPrinter(escData, (sent, total) => {
+          const pct = 50 + Math.round((sent / total) * 50);
+          setPrintProgress(pct);
+        });
+        finishProgress(true);
       }
       else if (tab === 'code') {
         if (!codeInput.trim()) return Alert.alert('Input Kosong');
+        startProgress(codeType === 'qr' ? 'Membuat QR Code...' : 'Membuat Barcode...');
+        setPrintProgress(30);
+
         const d = codeType === 'qr'
           ? generateEscPosQR(codeInput, dots)
           : generateEscPosBarcode(codeInput, dots);
-        await sendToPrinter(d);
+
+        setPrintProgress(50);
+        setPrintStage('sending');
+        setPrintStatus('Mengirim ke printer...');
+
+        await sendToPrinter(d, (sent, total) => {
+          const pct = 50 + Math.round((sent / total) * 50);
+          setPrintProgress(pct);
+        });
+        finishProgress(true);
       }
-      Alert.alert('Berhasil ✅', 'Berhasil dicetak!');
     } catch (e: any) {
-      if (!e.message?.includes('cancel')) Alert.alert('Gagal', e.message);
-    } finally { setPrinting(false); }
+      if (!e.message?.includes('cancel')) {
+        if (showProgress) {
+          finishProgress(false, e.message);
+        } else {
+          Alert.alert('Gagal', e.message);
+          setPrinting(false);
+        }
+      } else {
+        setShowProgress(false);
+        setPrinting(false);
+      }
+    }
   };
 
   // ─── RENDER ────────────────────────────────────────────
@@ -427,6 +512,14 @@ export default function MainScreen() {
       </TouchableOpacity>
 
       <AdBanner />
+
+      {/* ═══ PRINT PROGRESS ═══ */}
+      <PrintProgress
+        visible={showProgress}
+        progress={printProgress}
+        status={printStatus}
+        stage={printStage}
+      />
 
       {/* ═══ CONNECTION MODAL ═══ */}
       <Modal visible={connModal} transparent animationType="fade" onRequestClose={() => setConnModal(false)}>

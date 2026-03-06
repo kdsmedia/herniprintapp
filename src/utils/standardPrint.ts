@@ -137,8 +137,10 @@ export async function printImageStandard(
     : ext.includes('.webp') ? 'image/webp'
     : 'image/jpeg';
 
-  const contentHtml = `<img src="data:${mime};base64,${base64}" />`;
-  const html = buildPrintHtml(contentHtml, settings);
+  // Repeat content for number of copies
+  const imgTag = `<img src="data:${mime};base64,${base64}" />`;
+  const pages = Array(settings.copies).fill(`<div class="print-content">${imgTag}</div>`).join('<div style="page-break-after: always;"></div>');
+  const html = buildPrintHtml(pages, settings);
 
   await Print.printAsync({ html });
 }
@@ -168,13 +170,14 @@ export async function printTextStandard(
     .replace(/>/g, '&gt;')
     .replace(/\n/g, '<br>');
 
-  const contentHtml = `
+  const singlePage = `
     <div style="width: 100%; text-align: center; padding: 20px;">
       <h2 style="font-family: Arial; margin-bottom: 20px; color: #333;">${storeName}</h2>
       <div class="receipt-text">${escapedText}</div>
     </div>`;
 
-  const html = buildPrintHtml(contentHtml, settings);
+  const pages = Array(settings.copies).fill(`<div class="print-content">${singlePage}</div>`).join('<div style="page-break-after: always;"></div>');
+  const html = buildPrintHtml(pages, settings);
   await Print.printAsync({ html });
 }
 
@@ -194,5 +197,82 @@ export async function printCodeStandard(
     </div>`;
 
   const html = buildPrintHtml(contentHtml, settings);
+  await Print.printAsync({ html });
+}
+
+/**
+ * Print QR Code or Barcode via standard printer using inline HTML generation
+ * Generates the code directly in HTML using JavaScript libraries loaded from CDN
+ */
+export async function printCodeHtmlStandard(
+  text: string,
+  codeType: 'qr' | 'barcode',
+  settings: StandardPrintSettings,
+): Promise<void> {
+  const paper = PAPER_DIMENSIONS[settings.paperSize];
+  const isLandscape = settings.orientation === 'landscape';
+  const w = isLandscape ? paper.h : paper.w;
+  const h = isLandscape ? paper.w : paper.h;
+  const margin = settings.borderMode === 'borderless' ? '0' : '10mm';
+
+  const escapedText = text.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  let codeHtml: string;
+  if (codeType === 'qr') {
+    // Generate QR code using SVG table (pure HTML, no JS library needed)
+    codeHtml = `
+      <div id="qr-container" style="text-align: center; padding: 40px;">
+        <div id="qr-code"></div>
+        <p style="font-family: 'Courier New', monospace; margin-top: 20px; font-size: 14px; color: #333;">${escapedText}</p>
+      </div>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+      <script>
+        new QRCode(document.getElementById('qr-code'), {
+          text: "${escapedText}",
+          width: 256,
+          height: 256,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.H
+        });
+      </script>`;
+  } else {
+    // Generate barcode using SVG
+    codeHtml = `
+      <div style="text-align: center; padding: 40px;">
+        <svg id="barcode"></svg>
+        <p style="font-family: 'Courier New', monospace; margin-top: 20px; font-size: 14px; color: #333;">${escapedText}</p>
+      </div>
+      <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+      <script>
+        JsBarcode("#barcode", "${escapedText}", {
+          format: "CODE128",
+          width: 3,
+          height: 100,
+          displayValue: true,
+          fontSize: 16,
+          lineColor: "#000000"
+        });
+      </script>`;
+  }
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { size: ${w}mm ${h}mm; margin: ${margin}; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; background: white;
+  }
+</style>
+</head>
+<body>
+${codeHtml}
+</body>
+</html>`;
+
   await Print.printAsync({ html });
 }

@@ -60,29 +60,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [storeName, setStoreName] = useState('HERNIPRINT');
   const [storeContact, setStoreContact] = useState('');
 
-  // Load saved settings
+  // Load saved settings (use @herniprint/ prefix for consistency with storage.ts)
   useEffect(() => {
-    AsyncStorage.multiGet(['storeName', 'storeContact', 'paperWidth']).then((pairs) => {
+    AsyncStorage.multiGet([
+      '@herniprint/storeName',
+      '@herniprint/storeContact',
+      '@herniprint/paperWidth',
+    ]).then((pairs) => {
       pairs.forEach(([key, val]) => {
         if (!val) return;
-        if (key === 'storeName') setStoreName(val);
-        if (key === 'storeContact') setStoreContact(val);
-        if (key === 'paperWidth') setPaperWidth(parseInt(val) as PaperWidth);
+        if (key === '@herniprint/storeName') setStoreName(val);
+        if (key === '@herniprint/storeContact') setStoreContact(val);
+        if (key === '@herniprint/paperWidth') setPaperWidth(parseInt(val) as PaperWidth);
       });
     });
   }, []);
 
   // Save settings
   useEffect(() => {
-    AsyncStorage.setItem('storeName', storeName);
+    AsyncStorage.setItem('@herniprint/storeName', storeName);
   }, [storeName]);
 
   useEffect(() => {
-    AsyncStorage.setItem('storeContact', storeContact);
+    AsyncStorage.setItem('@herniprint/storeContact', storeContact);
   }, [storeContact]);
 
   useEffect(() => {
-    AsyncStorage.setItem('paperWidth', String(paperWidth));
+    AsyncStorage.setItem('@herniprint/paperWidth', String(paperWidth));
   }, [paperWidth]);
 
   const connectDevice = useCallback(async (device: PrinterDevice) => {

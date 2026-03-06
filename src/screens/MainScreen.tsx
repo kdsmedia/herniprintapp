@@ -26,6 +26,7 @@ import {
   requestBluetoothPermissions, scanForPrinters, stopScan, PrinterDevice,
 } from '../utils/bluetooth';
 import AdBanner from '../components/AdBanner';
+import { preloadInterstitial, showInterstitial } from '../utils/ads';
 import PrintProgress from '../components/PrintProgress';
 import PdfCapture, { PdfCaptureRef } from '../components/PdfCapture';
 import StandardPrintSettingsPanel from '../components/StandardPrintSettings';
@@ -53,7 +54,8 @@ export default function MainScreen() {
   const {
     isConnected, connectedDeviceName, connectDevice, disconnect,
     sendToPrinter, paperWidth, setPaperWidth, contrast, setContrast,
-    storeName, labelItems, addLabelItem, updateLabelItem, removeLabelItem,
+    storeName, setStoreName, storeContact, setStoreContact,
+    labelItems, addLabelItem, updateLabelItem, removeLabelItem,
     clearLabelItems, getLabelTotal,
   } = useApp();
 
@@ -66,6 +68,9 @@ export default function MainScreen() {
   const [codeType, setCodeType] = useState<CodeType>('qr');
   const [printing, setPrinting] = useState(false);
   const [connModal, setConnModal] = useState(false);
+
+  // Settings
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Printer mode
   const [printerMode, setPrinterMode] = useState<PrinterMode>('thermal');
@@ -96,6 +101,9 @@ export default function MainScreen() {
   const [connecting, setConnecting] = useState<string | null>(null);
 
   const labelTotal = getLabelTotal();
+
+  // Preload interstitial ad on mount
+  React.useEffect(() => { preloadInterstitial(); }, []);
 
   // ─── Preview Text ───────────────────────────────────────
   const previewText = useMemo(() => {
@@ -183,6 +191,8 @@ export default function MainScreen() {
     setTimeout(() => {
       setShowProgress(false);
       setPrinting(false);
+      // Show interstitial ad after successful print (with cooldown)
+      if (success) showInterstitial();
     }, success ? 1500 : 2500);
   };
 
@@ -213,8 +223,9 @@ export default function MainScreen() {
         if (!codeInput.trim()) return Alert.alert('Input Kosong');
         setPrintStatus('Mencetak kode...');
         setPrintProgress(50);
-        // For QR/Barcode, print the preview text with standard printer
-        await printTextStandard(codeInput, stdSettings, 'QR/Barcode');
+        // Render QR/Barcode as HTML image for color printing
+        const { printCodeHtmlStandard } = require('../utils/standardPrint');
+        await printCodeHtmlStandard(codeInput, codeType, stdSettings);
       }
       finishProgress(true);
     } catch (e: any) {
@@ -408,9 +419,14 @@ export default function MainScreen() {
             </View>
           </View>
         </View>
-        <TouchableOpacity style={s.linkBtn} onPress={() => setConnModal(true)}>
-          <Ionicons name="link" size={18} color={COLORS.primaryLight} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity style={s.linkBtn} onPress={() => setSettingsOpen(!settingsOpen)}>
+            <Ionicons name="settings-sharp" size={18} color={COLORS.primaryLight} />
+          </TouchableOpacity>
+          <TouchableOpacity style={s.linkBtn} onPress={() => setConnModal(true)}>
+            <Ionicons name="link" size={18} color={COLORS.primaryLight} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={s.main} contentContainerStyle={s.mainInner}>
@@ -616,6 +632,23 @@ export default function MainScreen() {
             </View>
           </View>}
         </View>
+
+        {/* ═══ SETTINGS PANEL ═══ */}
+        {settingsOpen && (
+          <View style={s.settingsCard}>
+            <View style={s.settingsHeader}>
+              <Ionicons name="settings" size={16} color={COLORS.primaryLight} />
+              <Text style={s.settingsTitle}>PENGATURAN TOKO</Text>
+            </View>
+            <Text style={s.settingsLabel}>Nama Toko (muncul di struk)</Text>
+            <TextInput style={s.input} value={storeName} onChangeText={setStoreName} placeholder="Nama toko Anda" placeholderTextColor="#64748b" />
+            <Text style={s.settingsLabel}>Kontak Toko</Text>
+            <TextInput style={s.input} value={storeContact} onChangeText={setStoreContact} placeholder="No. HP / Email" placeholderTextColor="#64748b" />
+            <View style={s.settingsAbout}>
+              <Text style={{ fontSize: 10, color: COLORS.textMuted, textAlign: 'center' }}>HERNIPRINT v2.0 — Solusi Cetak Thermal & Warna{'\n'}© 2026 Alto Media Indonesia</Text>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* ═══ FLOATING PRINT BUTTON ═══ */}
@@ -769,6 +802,13 @@ const s = StyleSheet.create({
   labelItem: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 14, padding: 10, gap: 8 },
   labelItemHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   totalBox: { backgroundColor: 'rgba(79,70,229,0.2)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(79,70,229,0.3)', padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+
+  // Settings panel
+  settingsCard: { backgroundColor: COLORS.bgCard, borderRadius: 20, borderWidth: 1, borderColor: COLORS.bgCardBorder, padding: 16, gap: 10 },
+  settingsHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  settingsTitle: { fontSize: 10, fontWeight: '800', color: COLORS.primaryLight, letterSpacing: 1 },
+  settingsLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textSecondary, marginTop: 4 },
+  settingsAbout: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: 12, marginTop: 6 },
 
   // Printer mode toggle
   printerModeCard: { backgroundColor: COLORS.bgCard, borderRadius: 20, borderWidth: 1, borderColor: COLORS.bgCardBorder, padding: 12, gap: 8 },

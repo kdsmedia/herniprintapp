@@ -37,10 +37,34 @@ export interface ReceiptLine {
 
 // ─── Text Encoding ────────────────────────────────────────
 function encodeText(text: string): number[] {
+  // Encode text using CP437-compatible mapping for thermal printers
+  // Common Indonesian characters (é, è, ê, ü, etc.) are mapped where possible
   const bytes: number[] = [];
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i);
-    bytes.push(code > 127 ? 0x3f : code); // Replace non-ASCII with '?'
+    if (code <= 127) {
+      bytes.push(code);
+    } else {
+      // Map common extended characters to CP437 equivalents
+      const cp437Map: Record<number, number> = {
+        0xE9: 0x82, // é
+        0xE8: 0x8A, // è
+        0xEA: 0x88, // ê
+        0xEB: 0x89, // ë
+        0xE0: 0x85, // à
+        0xE1: 0xA0, // á
+        0xE2: 0x83, // â
+        0xE4: 0x84, // ä
+        0xF6: 0x94, // ö
+        0xFC: 0x81, // ü
+        0xF1: 0xA4, // ñ
+        0xE7: 0x87, // ç
+        0xB0: 0xF8, // °
+        0xA9: 0x63, // © → c
+        0xAE: 0x52, // ® → R
+      };
+      bytes.push(cp437Map[code] || 0x3f); // Fallback to '?' for unmapped
+    }
   }
   return bytes;
 }

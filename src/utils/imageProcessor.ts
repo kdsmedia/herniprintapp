@@ -14,12 +14,24 @@ import { Buffer } from 'buffer';
  */
 export async function processImageForPrint(
   imageUri: string,
-  targetWidth: number
+  targetWidth: number,
+  options?: { landscape?: boolean; sharpness?: number },
 ): Promise<{ pixels: Uint8Array; width: number; height: number }> {
-  // Step 1: Resize image to target width
+  // Build manipulation actions
+  const actions: ImageManipulator.Action[] = [];
+
+  // Rotate 90° for landscape orientation
+  if (options?.landscape) {
+    actions.push({ rotate: 90 });
+  }
+
+  // Resize to target width
+  actions.push({ resize: { width: targetWidth } });
+
+  // Step 1: Resize (and optionally rotate) image
   const resized = await ImageManipulator.manipulateAsync(
     imageUri,
-    [{ resize: { width: targetWidth } }],
+    actions,
     { format: ImageManipulator.SaveFormat.PNG, compress: 1 }
   );
 

@@ -132,15 +132,21 @@ export function pixelsToEscPos(
   height: number,
   contrast: number = 1.0,
   paperDots?: number, // Optional: paper width in dots (384 or 576) for centering
+  align: 'left' | 'center' | 'right' = 'center',
 ): Uint8Array {
-  // Determine output width — use paper width for centering, or image width
+  // Determine output width — use paper width for alignment, or image width
   const outputWidth = paperDots || width;
   // Ensure output width is multiple of 8 (required by ESC/POS raster)
   const alignedWidth = Math.ceil(outputWidth / 8) * 8;
   const widthBytes = alignedWidth / 8;
 
-  // Calculate left padding to center the image
-  const padLeft = Math.max(0, Math.floor((alignedWidth - width) / 2));
+  // Calculate left padding based on alignment
+  let padLeft = 0;
+  if (paperDots && width < alignedWidth) {
+    if (align === 'center') padLeft = Math.floor((alignedWidth - width) / 2);
+    else if (align === 'right') padLeft = alignedWidth - width;
+    // 'left' → padLeft = 0
+  }
 
   // Convert to grayscale with ITU-R BT.601 (white background for transparency)
   const gray = new Float32Array(width * height);

@@ -82,6 +82,11 @@ export default function MainScreen() {
   const [printStage, setPrintStage] = useState<'prepare' | 'sending' | 'done' | 'error'>('prepare');
   const [showProgress, setShowProgress] = useState(false);
 
+  // Pre-print settings modal
+  const [showPrintSettings, setShowPrintSettings] = useState(false);
+  const [printAlign, setPrintAlign] = useState<'left' | 'center' | 'right'>('center');
+  const [printSharpness, setPrintSharpness] = useState(5); // 1-10
+
   // Image/PDF
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [pdfUri, setPdfUri] = useState<string | null>(null);
@@ -314,7 +319,23 @@ export default function MainScreen() {
   };
 
   // ─── PRINT ─────────────────────────────────────────────
+  // Called when FAB is pressed — opens pre-print settings modal
+  const handlePrintPress = () => {
+    // Validate first
+    if (printerMode === 'thermal' && !isConnected) {
+      return Alert.alert('Printer Belum Terhubung', 'Hubungkan printer thermal via Bluetooth terlebih dahulu.');
+    }
+    if (tab === 'img' && !imageUri) return Alert.alert('Pilih Gambar', 'Unggah gambar terlebih dahulu.');
+    if (tab === 'pdf' && !pdfUri) return Alert.alert('Pilih PDF', 'Unggah file PDF terlebih dahulu.');
+    if (tab === 'code' && !codeInput.trim()) return Alert.alert('Masukkan Data', 'Isi teks untuk QR/Barcode.');
+    // Show pre-print settings popup
+    setShowPrintSettings(true);
+  };
+
+  // Called after user confirms settings in the popup
   const handlePrint = async () => {
+    setShowPrintSettings(false);
+
     // Standard printer mode — no BLE needed
     if (printerMode === 'standard') {
       setPrinting(true);
@@ -330,16 +351,20 @@ export default function MainScreen() {
     try {
       const dots = PAPER[paperWidth].dots;
 
+      // Sharpness → contrast boost (1-10 scale → 0.6-2.0 multiplier)
+      const sharpContrast = contrast * (0.6 + (printSharpness / 10) * 1.4);
+      const isLandscape = stdSettings.orientation === 'landscape';
+
       if (tab === 'img') {
         if (!imageUri) return Alert.alert('Pilih Gambar');
         startProgress('Memproses gambar...');
         setPrintProgress(10);
 
-        const { pixels, width, height } = await processImageForPrint(imageUri, dots);
+        const { pixels, width, height } = await processImageForPrint(imageUri, dots, { landscape: isLandscape, sharpness: printSharpness });
         setPrintProgress(40);
         setPrintStatus('Mengkonversi untuk printer...');
 
-        const escData = pixelsToEscPos(pixels, width, height, contrast, dots);
+        const escData = pixelsToEscPos(pixels, width, height, sharpContrast, dots, printAlign);
         setPrintProgress(50);
         setPrintStage('sending');
         setPrintStatus('Mengirim ke printer...');
@@ -373,11 +398,11 @@ export default function MainScreen() {
 
         // Process image for thermal printing
         setPrintStatus('Memproses gambar untuk printer...');
-        const { pixels, width, height } = await processImageForPrint(capturedUri, dots);
+        const { pixels, width, height } = await processImageForPrint(capturedUri, dots, { landscape: isLandscape, sharpness: printSharpness });
         setPrintProgress(60);
 
         setPrintStatus('Mengkonversi ke ESC/POS...');
-        const escData = pixelsToEscPos(pixels, width, height, contrast, dots);
+        const escData = pixelsToEscPos(pixels, width, height, sharpContrast, dots, printAlign);
         setPrintProgress(70);
         setPrintStage('sending');
         setPrintStatus('Mengirim ke printer...');
@@ -784,7 +809,7 @@ export default function MainScreen() {
       {/* ═══ FLOATING PRINT BUTTON ═══ */}
       <TouchableOpacity
         style={[s.fab, printing && { opacity: 0.5 }]}
-        onPress={handlePrint} disabled={printing} activeOpacity={0.8}
+        onPress={handlePrintPress} disabled={printing} activeOpacity={0.8}
       >
         <LinearGradient
           colors={printerMode === 'standard'
@@ -801,6 +826,161 @@ export default function MainScreen() {
 
       {/* ═══ HIDDEN PDF CAPTURE ═══ */}
       <PdfCapture ref={pdfCaptureRef} renderWidth={printerMode === 'thermal' ? PAPER[paperWidth].dots : 800} />
+
+      {/* ═══ PRE-PRINT SETTINGS POPUP ═══ */}
+      <Modal visible={showPrintSettings} transparent animationType="slide" onRequestClose={() => setShowPrintSettings(false)}>
+        <View style={s.modalOv}>
+          <View style={[s.modalCard, { maxHeight: '80%' }]}>
+            {/* Header */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="options" size={20} color={COLORS.primaryLight} />
+                <Text style={{ fontSize: 16, fontWeight: '800', color: '#fff' }}>Pengaturan Cetak</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowPrintSettings(false)}>
+                <Ionicons name="close" size={24} color="rgba(255,255,255,0.5)" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ gap: 16 }}>
+              {/* Paper Size (thermal only) */}
+              {printerMode === 'thermal' && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={s.psLabel}>📄 Ukuran Kertas</Text>
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                    {[58, 80].map((pw) => (
+                      <TouchableOpacity
+                        key={pw}
+                        style={[s.psChip, paperWidth === pw && s.psChipActive]}
+                        onPress={() => setPaperWidth(pw as 58 | 80)}
+                      >
+                        <Ionicons name="document-outline" size={16} color={paperWidth === pw ? '#fff' : COLORS.textMuted} />
+                        <View>
+                          <Text style={[s.psChipTxt, paperWidth === pw && s.psChipTxtActive]}>{pw}mm</Text>
+                          <Text style={[s.psChipDesc, paperWidth === pw && { color: 'rgba(255,255,255,0.7)' }]}>
+                            {pw === 58 ? '384 dots • 32 char' : '576 dots • 48 char'}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Orientation */}
+              <View style={{ marginBottom: 16 }}>
+                <Text style={s.psLabel}>📐 Orientasi</Text>
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                  {([['portrait', 'Portrait', 'phone-portrait-outline'], ['landscape', 'Landscape', 'phone-landscape-outline']] as const).map(([val, lbl, ico]) => (
+                    <TouchableOpacity
+                      key={val}
+                      style={[s.psChip, stdSettings.orientation === val && s.psChipActive, { flex: 1 }]}
+                      onPress={() => setStdSettings(p => ({ ...p, orientation: val }))}
+                    >
+                      <Ionicons name={ico} size={18} color={stdSettings.orientation === val ? '#fff' : COLORS.textMuted} />
+                      <Text style={[s.psChipTxt, stdSettings.orientation === val && s.psChipTxtActive]}>{lbl}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Alignment (thermal only — for image positioning) */}
+              {printerMode === 'thermal' && (tab === 'img' || tab === 'pdf') && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={s.psLabel}>↔️ Posisi Cetak</Text>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                    {([['left', 'Kiri', 'arrow-back'], ['center', 'Tengah', 'remove-outline'], ['right', 'Kanan', 'arrow-forward']] as const).map(([val, lbl, ico]) => (
+                      <TouchableOpacity
+                        key={val}
+                        style={[s.psChip, printAlign === val && s.psChipActive, { flex: 1 }]}
+                        onPress={() => setPrintAlign(val)}
+                      >
+                        <Ionicons name={ico} size={16} color={printAlign === val ? '#fff' : COLORS.textMuted} />
+                        <Text style={[s.psChipTxt, printAlign === val && s.psChipTxtActive]}>{lbl}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Sharpness */}
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={s.psLabel}>🔆 Ketajaman</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '900', color: COLORS.primaryLight }}>{printSharpness}/10</Text>
+                </View>
+                <Slider
+                  minimumValue={1}
+                  maximumValue={10}
+                  step={1}
+                  value={printSharpness}
+                  onValueChange={setPrintSharpness}
+                  minimumTrackTintColor={COLORS.primary}
+                  maximumTrackTintColor="rgba(255,255,255,0.15)"
+                  thumbTintColor={COLORS.primaryLight}
+                  style={{ marginTop: 8, height: 40 }}
+                />
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 9, color: COLORS.textMuted }}>Lembut</Text>
+                  <Text style={{ fontSize: 9, color: COLORS.textMuted }}>Tajam</Text>
+                </View>
+              </View>
+
+              {/* Contrast (thermal only) */}
+              {printerMode === 'thermal' && (
+                <View style={{ marginBottom: 16 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={s.psLabel}>🌗 Kontras</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '900', color: COLORS.primaryLight }}>{Math.round(contrast * 100)}%</Text>
+                  </View>
+                  <Slider
+                    minimumValue={0.5}
+                    maximumValue={2.0}
+                    step={0.1}
+                    value={contrast}
+                    onValueChange={setContrast}
+                    minimumTrackTintColor={COLORS.primary}
+                    maximumTrackTintColor="rgba(255,255,255,0.15)"
+                    thumbTintColor={COLORS.primaryLight}
+                    style={{ marginTop: 8, height: 40 }}
+                  />
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 9, color: COLORS.textMuted }}>Terang</Text>
+                    <Text style={{ fontSize: 9, color: COLORS.textMuted }}>Gelap</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Summary */}
+              <View style={{ backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, padding: 12, marginBottom: 12 }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 6 }}>RINGKASAN</Text>
+                <Text style={{ fontSize: 11, color: '#fff', lineHeight: 18 }}>
+                  {printerMode === 'thermal' ? `🖨️ Thermal ${paperWidth}mm` : '🖨️ Printer Besar'} • {stdSettings.orientation === 'portrait' ? '📱 Portrait' : '📱 Landscape'}
+                  {printerMode === 'thermal' ? ` • ↔️ ${printAlign === 'center' ? 'Tengah' : printAlign === 'left' ? 'Kiri' : 'Kanan'}` : ''}
+                  {' '}• 🔆 {printSharpness}/10{printerMode === 'thermal' ? ` • 🌗 ${Math.round(contrast * 100)}%` : ''}
+                </Text>
+              </View>
+            </ScrollView>
+
+            {/* Print Button */}
+            <TouchableOpacity
+              style={{ backgroundColor: COLORS.primary, borderRadius: 16, paddingVertical: 14, alignItems: 'center', marginTop: 8 }}
+              onPress={handlePrint}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={printerMode === 'thermal' ? ['#7c3aed', '#6d28d9'] : ['#059669', '#047857']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 16 }}
+              />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="print" size={20} color="#fff" />
+                <Text style={{ fontSize: 14, fontWeight: '900', color: '#fff', letterSpacing: 1 }}>CETAK SEKARANG</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* ═══ PRINT PROGRESS ═══ */}
       <PrintProgress
@@ -967,6 +1147,14 @@ const s = StyleSheet.create({
   ctrlBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   ctrlBtnActive: { backgroundColor: COLORS.primary },
   ctrlBtnTxt: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted },
+
+  // Pre-print settings popup
+  psLabel: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  psChip: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.3)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
+  psChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primaryLight },
+  psChipTxt: { fontSize: 12, fontWeight: '700', color: COLORS.textMuted },
+  psChipTxtActive: { color: '#fff' },
+  psChipDesc: { fontSize: 9, color: 'rgba(255,255,255,0.25)', marginTop: 1 },
 
   // FAB — positioned above banner ad (~60px banner height)
   fab: { position: 'absolute', bottom: 75, alignSelf: 'center', width: 72, height: 72, borderRadius: 36, overflow: 'hidden', elevation: 20, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.5, shadowRadius: 24, zIndex: 20 },

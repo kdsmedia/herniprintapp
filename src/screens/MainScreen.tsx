@@ -28,7 +28,7 @@ import {
 import AdBanner from '../components/AdBanner';
 import { preloadInterstitial, showInterstitial } from '../utils/ads';
 import PrintProgress from '../components/PrintProgress';
-import PdfCapture, { PdfCaptureRef } from '../components/PdfCapture';
+import PdfConverter, { PdfConverterRef } from '../components/PdfConverter';
 import StandardPrintSettingsPanel from '../components/StandardPrintSettings';
 import {
   PrinterMode, StandardPrintSettings, DEFAULT_PRINT_SETTINGS,
@@ -60,7 +60,7 @@ export default function MainScreen() {
   } = useApp();
 
   // Refs
-  const pdfCaptureRef = useRef<PdfCaptureRef>(null);
+  const pdfConverterRef = useRef<PdfConverterRef>(null);
 
   // UI State
   const [tab, setTab] = useState<TabId>('img');
@@ -167,7 +167,7 @@ export default function MainScreen() {
     setPdfConverting(false);
   };
 
-  // Auto-convert PDF to image immediately after upload
+  // Auto-convert PDF to image immediately after upload (using PDF.js WebView)
   React.useEffect(() => {
     if (!pdfUri) return;
     let cancelled = false;
@@ -176,47 +176,37 @@ export default function MainScreen() {
       setPdfConverting(true);
       setPdfImageUri(null);
 
-      // Wait for PdfCapture component to mount
+      // Wait for PdfConverter WebView to be ready
       let retries = 0;
-      while (!pdfCaptureRef.current && retries < 10) {
+      while (!pdfConverterRef.current && retries < 15) {
         await new Promise(r => setTimeout(r, 200));
         retries++;
       }
 
-      if (!pdfCaptureRef.current) {
+      if (!pdfConverterRef.current) {
         if (!cancelled) {
           setPdfConverting(false);
-          Alert.alert('Error', 'Gagal memuat renderer PDF. Coba lagi.');
+          Alert.alert('Error', 'PDF converter belum siap. Coba lagi.');
         }
         return;
       }
 
       try {
-        const uri = await pdfCaptureRef.current.capture(pdfUri, 1);
-        if (!cancelled) {
-          setPdfImageUri(uri);
-        }
+        // Scale: 2.0 for good quality preview, thermal will re-process anyway
+        const uri = await pdfConverterRef.current.convert(pdfUri, 1, 2.0);
+        if (!cancelled) setPdfImageUri(uri);
       } catch (e: any) {
         if (!cancelled) {
-          console.warn('PDF auto-convert failed:', e.message);
-          // Retry once after a longer delay
-          try {
-            await new Promise(r => setTimeout(r, 1000));
-            if (pdfCaptureRef.current && !cancelled) {
-              const uri = await pdfCaptureRef.current.capture(pdfUri, 1);
-              if (!cancelled) setPdfImageUri(uri);
-            }
-          } catch {
-            if (!cancelled) Alert.alert('Konversi Gagal', 'PDF tidak bisa dikonversi ke gambar. Coba file lain.');
-          }
+          console.warn('PDF convert failed:', e.message);
+          Alert.alert('Konversi Gagal', e.message || 'PDF tidak bisa dikonversi. Coba file lain.');
         }
       } finally {
         if (!cancelled) setPdfConverting(false);
       }
     };
 
-    // Small initial delay for component mounting
-    const timer = setTimeout(convertPdf, 200);
+    // Small delay for WebView mount
+    const timer = setTimeout(convertPdf, 500);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [pdfUri]);
 
@@ -386,13 +376,13 @@ export default function MainScreen() {
         // Use pre-converted image if available, otherwise convert now
         let capturedUri = pdfImageUri;
         if (!capturedUri) {
-          if (!pdfCaptureRef.current) {
+          if (!pdfConverterRef.current) {
             finishProgress(false, 'PDF converter tidak tersedia');
             return;
           }
           setPrintStatus('Mengkonversi PDF ke gambar...');
           setPrintProgress(20);
-          capturedUri = await pdfCaptureRef.current.capture(pdfUri, 1);
+          capturedUri = await pdfConverterRef.current.convert(pdfUri, 1, 2.0);
         }
         setPrintProgress(40);
 
@@ -964,7 +954,7 @@ export default function MainScreen() {
       <AdBanner />
 
       {/* ═══ HIDDEN PDF CAPTURE ═══ */}
-      <PdfCapture ref={pdfCaptureRef} renderWidth={printerMode === 'thermal' ? PAPER[paperWidth].dots : 800} />
+      <PdfConverter ref={pdfConverterRef} defaultScale={2.0} />
 
       {/* ═══ PRE-PRINT SETTINGS POPUP ═══ */}
       <Modal visible={showPrintSettings} transparent animationType="slide" onRequestClose={() => setShowPrintSettings(false)}>

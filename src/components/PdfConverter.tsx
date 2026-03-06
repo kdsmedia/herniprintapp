@@ -15,11 +15,12 @@
  * - Configurable render scale
  * - Proper error handling with timeout
  * - WebView persists for fast re-conversion
+ * - Message queuing (handles messages before PDF.js is loaded)
  */
 import React, {
   useRef, useCallback, useImperativeHandle, forwardRef, useState,
 } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system';
 
@@ -38,18 +39,23 @@ export interface PdfConverterRef {
    */
   convertPage: (page: number, scale?: number) => Promise<string>;
 
-  /** Whether the WebView is ready */
+  /** Whether the WebView + PDF.js is fully ready */
   isReady: () => boolean;
 }
 
 interface Props {
   /** Default render scale (default 2.0 for good quality) */
   defaultScale?: number;
-  /** Called when WebView is ready */
+  /** Called when WebView + PDF.js is ready */
   onReady?: () => void;
 }
 
 // ─── PDF.js Renderer HTML ─────────────────────────────────
+// Key features:
+// - Loads PDF.js from CDN with error handling
+// - Queues messages received before PDF.js is ready
+// - Processes queued messages once ready
+// - Handles load_pdf and render_page commands
 const PDF_RENDERER_HTML = `
 <!DOCTYPE html>
 <html>
@@ -65,25 +71,11 @@ const PDF_RENDERER_HTML = `
 <body>
 <canvas id="canvas"></canvas>
 <script>
-// Load PDF.js from CDN
-var script = document.createElement('script');
-script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-script.onload = function() {
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' }));
-};
-script.onerror = function() {
-  window.ReactNativeWebView.postMessage(JSON.stringify({
-    type: 'ready_error',
-    error: 'Gagal memuat PDF.js. Periksa koneksi internet.'
-  }));
-};
-document.head.appendChild(script);
-
+var pdfJsReady = false;
+var messageQueue = [];
 var currentPdf = null;
 
-// Listen for messages from React Native
+// Listen for messages from React Native (both Android & iOS)
 document.addEventListener('message', handleMsg);
 window.addEventListener('message', handleMsg);
 
@@ -91,21 +83,73 @@ function handleMsg(event) {
   try {
     var msg = JSON.parse(event.data);
 
-    if (msg.type === 'load_pdf') {
-      loadPdf(msg.base64);
-    } else if (msg.type === 'render_page') {
-      renderPage(msg.page, msg.scale);
+    if (!pdfJsReady) {
+      // PDF.js not loaded yet — queue the message
+      messageQueue.push(msg);
+      return;
     }
+
+    processMessage(msg);
   } catch(e) {
-    window.ReactNativeWebView.postMessage(JSON.stringify({
-      type: 'error',
-      error: 'Parse error: ' + e.message
-    }));
+    sendToRN({ type: 'error', error: 'Parse error: ' + e.message });
   }
 }
 
+function processMessage(msg) {
+  if (msg.type === 'load_pdf') {
+    loadPdf(msg.base64);
+  } else if (msg.type === 'render_page') {
+    renderPage(msg.page, msg.scale);
+  }
+}
+
+function processQueue() {
+  while (messageQueue.length > 0) {
+    var msg = messageQueue.shift();
+    processMessage(msg);
+  }
+}
+
+function sendToRN(obj) {
+  try {
+    window.ReactNativeWebView.postMessage(JSON.stringify(obj));
+  } catch(e) {
+    // WebView not available — ignore
+  }
+}
+
+// Load PDF.js from CDN
+var script = document.createElement('script');
+script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+
+script.onload = function() {
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfJsReady = true;
+    sendToRN({ type: 'ready' });
+    // Process any messages that arrived before PDF.js was ready
+    processQueue();
+  } catch(e) {
+    sendToRN({ type: 'ready_error', error: 'PDF.js init failed: ' + e.message });
+  }
+};
+
+script.onerror = function() {
+  sendToRN({
+    type: 'ready_error',
+    error: 'Gagal memuat PDF.js dari CDN. Periksa koneksi internet Anda.'
+  });
+};
+
+document.head.appendChild(script);
+
 async function loadPdf(base64Data) {
   try {
+    if (typeof pdfjsLib === 'undefined') {
+      throw new Error('PDF.js belum dimuat. Periksa koneksi internet.');
+    }
+
     var pdfData = atob(base64Data);
     var pdfArray = new Uint8Array(pdfData.length);
     for (var i = 0; i < pdfData.length; i++) {
@@ -114,23 +158,23 @@ async function loadPdf(base64Data) {
 
     currentPdf = await pdfjsLib.getDocument({ data: pdfArray }).promise;
 
-    window.ReactNativeWebView.postMessage(JSON.stringify({
+    sendToRN({
       type: 'pdf_loaded',
       totalPages: currentPdf.numPages
-    }));
+    });
   } catch(err) {
     currentPdf = null;
-    window.ReactNativeWebView.postMessage(JSON.stringify({
+    sendToRN({
       type: 'pdf_load_error',
       error: err.message || 'Gagal memuat PDF'
-    }));
+    });
   }
 }
 
 async function renderPage(pageNum, scale) {
   try {
     if (!currentPdf) {
-      throw new Error('PDF belum dimuat');
+      throw new Error('PDF belum dimuat. Silakan muat ulang file.');
     }
     if (pageNum < 1 || pageNum > currentPdf.numPages) {
       throw new Error('Halaman ' + pageNum + ' tidak ada (total: ' + currentPdf.numPages + ')');
@@ -154,7 +198,7 @@ async function renderPage(pageNum, scale) {
     var dataUrl = canvas.toDataURL('image/png');
     var base64Png = dataUrl.split(',')[1];
 
-    window.ReactNativeWebView.postMessage(JSON.stringify({
+    sendToRN({
       type: 'page_rendered',
       success: true,
       base64: base64Png,
@@ -162,14 +206,14 @@ async function renderPage(pageNum, scale) {
       width: Math.round(viewport.width),
       height: Math.round(viewport.height),
       totalPages: currentPdf.numPages
-    }));
+    });
   } catch(err) {
-    window.ReactNativeWebView.postMessage(JSON.stringify({
+    sendToRN({
       type: 'page_rendered',
       success: false,
       page: pageNum,
       error: err.message || 'Gagal render halaman'
-    }));
+    });
   }
 }
 </script>
@@ -181,7 +225,7 @@ async function renderPage(pageNum, scale) {
 const PdfConverter = forwardRef<PdfConverterRef, Props>(
   ({ defaultScale = 2.0, onReady }, ref) => {
     const webViewRef = useRef<WebView>(null);
-    const [ready, setReady] = useState(false);
+    const readyRef = useRef(false);
 
     // Promise resolvers for async operations
     const loadResolveRef = useRef<((pages: number) => void) | null>(null);
@@ -190,7 +234,7 @@ const PdfConverter = forwardRef<PdfConverterRef, Props>(
     const renderRejectRef = useRef<((err: Error) => void) | null>(null);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const clearTimeout_ = () => {
+    const clearPendingTimeout = () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
@@ -203,19 +247,29 @@ const PdfConverter = forwardRef<PdfConverterRef, Props>(
 
         switch (msg.type) {
           case 'ready':
-            setReady(true);
+            readyRef.current = true;
             onReady?.();
             break;
 
           case 'ready_error':
             console.error('PDF.js load failed:', msg.error);
-            // Still mark as "ready" but operations will fail with clear errors
-            setReady(true);
-            onReady?.();
+            readyRef.current = false;
+            // Reject any pending operations with clear error
+            if (loadRejectRef.current) {
+              loadRejectRef.current(new Error(msg.error));
+              loadResolveRef.current = null;
+              loadRejectRef.current = null;
+            }
+            if (renderRejectRef.current) {
+              renderRejectRef.current(new Error(msg.error));
+              renderResolveRef.current = null;
+              renderRejectRef.current = null;
+            }
+            clearPendingTimeout();
             break;
 
           case 'pdf_loaded':
-            clearTimeout_();
+            clearPendingTimeout();
             if (loadResolveRef.current) {
               loadResolveRef.current(msg.totalPages);
               loadResolveRef.current = null;
@@ -224,7 +278,7 @@ const PdfConverter = forwardRef<PdfConverterRef, Props>(
             break;
 
           case 'pdf_load_error':
-            clearTimeout_();
+            clearPendingTimeout();
             if (loadRejectRef.current) {
               loadRejectRef.current(new Error(msg.error || 'Gagal memuat PDF'));
               loadResolveRef.current = null;
@@ -233,19 +287,29 @@ const PdfConverter = forwardRef<PdfConverterRef, Props>(
             break;
 
           case 'page_rendered':
-            clearTimeout_();
+            clearPendingTimeout();
             if (msg.success && msg.base64) {
-              // Save PNG to cache
-              const filename = `pdf_page_${msg.page}_${Date.now()}.png`;
-              const filePath = `${FileSystem.cacheDirectory}${filename}`;
-              await FileSystem.writeAsStringAsync(filePath, msg.base64, {
-                encoding: FileSystem.EncodingType.Base64,
-              });
+              try {
+                // Save PNG to cache
+                const filename = `pdf_page_${msg.page}_${Date.now()}.png`;
+                const filePath = `${FileSystem.cacheDirectory}${filename}`;
+                await FileSystem.writeAsStringAsync(filePath, msg.base64, {
+                  encoding: FileSystem.EncodingType.Base64,
+                });
 
-              if (renderResolveRef.current) {
-                renderResolveRef.current(filePath);
-                renderResolveRef.current = null;
-                renderRejectRef.current = null;
+                if (renderResolveRef.current) {
+                  renderResolveRef.current(filePath);
+                  renderResolveRef.current = null;
+                  renderRejectRef.current = null;
+                }
+              } catch (saveErr: any) {
+                if (renderRejectRef.current) {
+                  renderRejectRef.current(
+                    new Error('Gagal menyimpan gambar: ' + saveErr.message)
+                  );
+                  renderResolveRef.current = null;
+                  renderRejectRef.current = null;
+                }
               }
             } else {
               if (renderRejectRef.current) {
@@ -259,7 +323,7 @@ const PdfConverter = forwardRef<PdfConverterRef, Props>(
             break;
 
           case 'error':
-            console.error('PdfConverter error:', msg.error);
+            console.error('PdfConverter WebView error:', msg.error);
             break;
         }
       } catch (e: any) {
@@ -267,40 +331,71 @@ const PdfConverter = forwardRef<PdfConverterRef, Props>(
       }
     }, [onReady]);
 
+    // Handle WebView load errors
+    const handleWebViewError = useCallback((syntheticEvent: any) => {
+      const { nativeEvent } = syntheticEvent;
+      console.error('WebView load error:', nativeEvent);
+      readyRef.current = false;
+
+      // Reject any pending operations
+      const error = new Error('WebView gagal dimuat. Coba restart aplikasi.');
+      if (loadRejectRef.current) {
+        loadRejectRef.current(error);
+        loadResolveRef.current = null;
+        loadRejectRef.current = null;
+      }
+      if (renderRejectRef.current) {
+        renderRejectRef.current(error);
+        renderResolveRef.current = null;
+        renderRejectRef.current = null;
+      }
+      clearPendingTimeout();
+    }, []);
+
     useImperativeHandle(ref, () => ({
-      isReady: () => ready,
+      isReady: () => readyRef.current,
 
       loadPdf: async (pdfUri: string): Promise<number> => {
         if (!webViewRef.current) {
-          throw new Error('WebView belum siap');
+          throw new Error('PDF converter belum tersedia. Tunggu beberapa detik dan coba lagi.');
         }
 
         // Read PDF as base64
-        const base64 = await FileSystem.readAsStringAsync(pdfUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+        let base64: string;
+        try {
+          base64 = await FileSystem.readAsStringAsync(pdfUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+        } catch (readErr: any) {
+          throw new Error('Gagal membaca file PDF: ' + (readErr.message || 'File tidak ditemukan'));
+        }
+
+        if (!base64 || base64.length === 0) {
+          throw new Error('File PDF kosong atau rusak.');
+        }
 
         return new Promise<number>((resolve, reject) => {
           // Cancel any pending load
           if (loadRejectRef.current) {
             loadRejectRef.current(new Error('Dibatalkan'));
           }
-          clearTimeout_();
+          clearPendingTimeout();
 
           loadResolveRef.current = resolve;
           loadRejectRef.current = reject;
 
-          // Timeout 20s
+          // Timeout 25s (extra time for CDN + large PDF)
           timeoutRef.current = setTimeout(() => {
             if (loadRejectRef.current) {
               loadRejectRef.current(
-                new Error('Timeout: PDF terlalu besar atau koneksi lambat')
+                new Error('Timeout memuat PDF. Pastikan koneksi internet stabil dan coba lagi.')
               );
               loadResolveRef.current = null;
               loadRejectRef.current = null;
             }
-          }, 20000);
+          }, 25000);
 
+          // Send to WebView — messages are queued if PDF.js not ready yet
           webViewRef.current!.postMessage(
             JSON.stringify({ type: 'load_pdf', base64 })
           );
@@ -312,7 +407,7 @@ const PdfConverter = forwardRef<PdfConverterRef, Props>(
         scale?: number
       ): Promise<string> => {
         if (!webViewRef.current) {
-          throw new Error('WebView belum siap');
+          throw new Error('PDF converter belum tersedia.');
         }
 
         return new Promise<string>((resolve, reject) => {
@@ -320,21 +415,21 @@ const PdfConverter = forwardRef<PdfConverterRef, Props>(
           if (renderRejectRef.current) {
             renderRejectRef.current(new Error('Dibatalkan'));
           }
-          clearTimeout_();
+          clearPendingTimeout();
 
           renderResolveRef.current = resolve;
           renderRejectRef.current = reject;
 
-          // Timeout 15s per page
+          // Timeout 20s per page (complex pages may take longer)
           timeoutRef.current = setTimeout(() => {
             if (renderRejectRef.current) {
               renderRejectRef.current(
-                new Error('Timeout: Halaman terlalu kompleks')
+                new Error('Timeout render halaman. Halaman mungkin terlalu kompleks.')
               );
               renderResolveRef.current = null;
               renderRejectRef.current = null;
             }
-          }, 15000);
+          }, 20000);
 
           webViewRef.current!.postMessage(
             JSON.stringify({
@@ -353,6 +448,8 @@ const PdfConverter = forwardRef<PdfConverterRef, Props>(
           ref={webViewRef}
           source={{ html: PDF_RENDERER_HTML }}
           onMessage={handleMessage}
+          onError={handleWebViewError}
+          onHttpError={handleWebViewError}
           javaScriptEnabled={true}
           domStorageEnabled={true}
           originWhitelist={['*']}
@@ -360,11 +457,13 @@ const PdfConverter = forwardRef<PdfConverterRef, Props>(
           cacheEnabled={true}
           startInLoadingState={false}
           androidLayerType="hardware"
-          // Allow mixed content for CDN loading
           mixedContentMode="compatibility"
-          // Important: don't let Android skip rendering
           collapsable={false}
           nestedScrollEnabled={false}
+          // Prevent media playback (security)
+          mediaPlaybackRequiresUserAction={true}
+          // Allow file access for cache operations
+          allowFileAccess={true}
         />
       </View>
     );
@@ -375,8 +474,7 @@ PdfConverter.displayName = 'PdfConverter';
 export default PdfConverter;
 
 // ─── Styles ───────────────────────────────────────────────
-// Use offscreen positioning instead of opacity:0 + tiny size
-// Android will NOT skip rendering views that are offscreen but have real dimensions
+// Position offscreen with real dimensions so Android renders the WebView
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',

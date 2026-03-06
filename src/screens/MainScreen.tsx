@@ -181,6 +181,8 @@ export default function MainScreen() {
 
   // Convert a specific PDF page using WebView + PDF.js
   const convertPdfPage = async (pageNum: number) => {
+    if (pdfConverting) return; // Prevent double-tap
+
     // Check cache first
     if (pdfPageCache[pageNum]) {
       setPdfImageUri(pdfPageCache[pageNum]);
@@ -189,7 +191,6 @@ export default function MainScreen() {
     }
 
     setPdfConverting(true);
-    setPdfImageUri(null);
     try {
       const converter = pdfConverterRef.current;
       if (!converter) throw new Error('PDF converter belum siap. Tunggu sebentar...');
@@ -202,6 +203,7 @@ export default function MainScreen() {
     } catch (e: any) {
       console.warn('PDF page convert failed:', e.message);
       Alert.alert('Konversi Gagal', e.message || 'Halaman tidak bisa dikonversi.');
+      // Keep showing the previous page image if available
     } finally {
       setPdfConverting(false);
     }
@@ -212,31 +214,33 @@ export default function MainScreen() {
     if (!pdfUri) return;
     let cancelled = false;
 
+    const waitForConverter = async (maxWaitMs: number = 5000): Promise<PdfConverterRef> => {
+      const startTime = Date.now();
+      while (Date.now() - startTime < maxWaitMs) {
+        if (cancelled) throw new Error('Dibatalkan');
+        if (pdfConverterRef.current) return pdfConverterRef.current;
+        await new Promise(r => setTimeout(r, 500));
+      }
+      throw new Error('PDF converter tidak tersedia. Pastikan koneksi internet aktif dan coba lagi.');
+    };
+
     const doLoad = async () => {
       setPdfConverting(true);
       setPdfImageUri(null);
       setPdfTotalPages(0);
 
       try {
-        const converter = pdfConverterRef.current;
-        if (!converter) {
-          // WebView might not be ready yet, retry after a short delay
-          await new Promise(r => setTimeout(r, 1500));
-          if (cancelled) return;
-          if (!pdfConverterRef.current) {
-            throw new Error('PDF converter belum siap. Coba lagi.');
-          }
-        }
-
-        const ref = pdfConverterRef.current!;
+        // Wait for WebView + PDF.js to be available
+        const converter = await waitForConverter(5000);
+        if (cancelled) return;
 
         // Step 1: Load PDF and get page count
-        const totalPages = await ref.loadPdf(pdfUri);
+        const totalPages = await converter.loadPdf(pdfUri);
         if (cancelled) return;
         setPdfTotalPages(totalPages);
 
         // Step 2: Convert first page
-        const uri = await ref.convertPage(1);
+        const uri = await converter.convertPage(1);
         if (cancelled) return;
         setPdfImageUri(uri);
         setPdfCurrentPage(1);
@@ -244,10 +248,13 @@ export default function MainScreen() {
       } catch (e: any) {
         if (!cancelled) {
           console.warn('PDF load failed:', e.message);
-          Alert.alert(
-            'Konversi Gagal',
-            e.message || 'PDF tidak bisa dikonversi. Pastikan koneksi internet aktif dan coba lagi.'
-          );
+          // Don't show alert for cancellation
+          if (e.message !== 'Dibatalkan') {
+            Alert.alert(
+              'Konversi Gagal',
+              e.message || 'PDF tidak bisa dikonversi. Pastikan koneksi internet aktif dan coba lagi.'
+            );
+          }
         }
       } finally {
         if (!cancelled) setPdfConverting(false);
@@ -373,6 +380,8 @@ export default function MainScreen() {
     }
     if (tab === 'img' && !imageUri) return Alert.alert('Pilih Gambar', 'Unggah gambar terlebih dahulu.');
     if (tab === 'pdf' && !pdfUri) return Alert.alert('Pilih PDF', 'Unggah file PDF terlebih dahulu.');
+    if (tab === 'pdf' && pdfConverting) return Alert.alert('Mohon Tunggu', 'PDF masih dikonversi. Tunggu sampai selesai.');
+    if (tab === 'pdf' && !pdfImageUri && printerMode === 'thermal') return Alert.alert('Konversi Belum Siap', 'PDF belum berhasil dikonversi ke gambar. Coba muat ulang file.');
     if (tab === 'code' && !codeInput.trim()) return Alert.alert('Masukkan Data', 'Isi teks untuk QR/Barcode.');
     // Show pre-print settings popup
     setShowPrintSettings(true);

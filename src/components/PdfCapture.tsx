@@ -97,7 +97,7 @@ const PdfCapture = forwardRef<PdfCaptureRef, Props>(({ renderWidth }, ref) => {
   if (!pdfSource) return null;
 
   return (
-    <View style={styles.offscreen} pointerEvents="none">
+    <View style={styles.offscreen} pointerEvents="none" collapsable={false}>
       <ViewShot
         ref={viewShotRef}
         options={{ format: 'png', quality: 1.0, result: 'tmpfile' }}
@@ -124,10 +124,14 @@ PdfCapture.displayName = 'PdfCapture';
 export default PdfCapture;
 
 const styles = StyleSheet.create({
+  // Use opacity near-zero + collapsable=false to ensure Android
+  // actually renders the native PDF view (fully offscreen views
+  // may be optimized away and never draw their content).
   offscreen: {
     position: 'absolute',
-    left: -9999,
-    top: -9999,
-    opacity: 0,
+    left: 0,
+    top: 0,
+    opacity: 0.01,
+    zIndex: -1,
   },
 });

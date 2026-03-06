@@ -978,7 +978,7 @@ export default function MainScreen() {
             <View style={s.settingsAboutBox}>
               <Text style={{ fontSize: 18, fontWeight: '900', color: '#fff', textAlign: 'center' }}>🖨️ HERNIPRINT</Text>
               <Text style={{ fontSize: 10, color: COLORS.textMuted, textAlign: 'center', marginTop: 4 }}>
-                Versi 2.0.0 (Build 2)
+                Versi 2.1.0 (Build 3)
               </Text>
               <Text style={{ fontSize: 10, color: COLORS.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 16 }}>
                 Aplikasi pencetakan profesional untuk printer thermal (Bluetooth) dan printer besar (WiFi/USB).{'\n'}

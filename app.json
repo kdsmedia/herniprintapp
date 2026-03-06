@@ -3,7 +3,7 @@
     "name": "HERNIPRINT",
     "slug": "herni-print",
     "owner": "sidhanie06",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -23,7 +23,7 @@
       },
       "package": "com.altomedia.herniprint",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_ADMIN",

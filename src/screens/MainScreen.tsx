@@ -462,12 +462,12 @@ export default function MainScreen() {
             </View>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity style={s.linkBtn} onPress={() => setSettingsOpen(!settingsOpen)}>
-            <Ionicons name="settings-sharp" size={18} color={COLORS.primaryLight} />
+        <View style={s.headerRight}>
+          <TouchableOpacity style={s.headerBtn} onPress={() => setConnModal(true)}>
+            <Ionicons name="bluetooth" size={18} color={isConnected ? '#22c55e' : COLORS.primaryLight} />
           </TouchableOpacity>
-          <TouchableOpacity style={s.linkBtn} onPress={() => setConnModal(true)}>
-            <Ionicons name="link" size={18} color={COLORS.primaryLight} />
+          <TouchableOpacity style={s.headerBtn} onPress={() => setSettingsOpen(!settingsOpen)}>
+            <Ionicons name="settings-sharp" size={18} color={settingsOpen ? '#f59e0b' : COLORS.primaryLight} />
           </TouchableOpacity>
         </View>
       </View>
@@ -821,7 +821,8 @@ const s = StyleSheet.create({
   dotRed: { backgroundColor: '#ef4444' },
   dotGreen: { backgroundColor: '#22c55e' },
   statusTxt: { fontSize: 9, fontWeight: '700', color: COLORS.primaryLight, textTransform: 'uppercase', letterSpacing: 2 },
-  linkBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.bgCardBorder, alignItems: 'center', justifyContent: 'center' },
+  headerRight: { flexDirection: 'row', gap: 8 },
+  headerBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.bgCardBorder, alignItems: 'center', justifyContent: 'center' },
 
   main: { flex: 1 },
   mainInner: { paddingHorizontal: 16, paddingBottom: 100, gap: 16 },

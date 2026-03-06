@@ -85,7 +85,7 @@ export default function MainScreen() {
   const [showPrintSettings, setShowPrintSettings] = useState(false);
   const [printAlign, setPrintAlign] = useState<'left' | 'center' | 'right'>('center');
   const [printSharpness, setPrintSharpness] = useState(5); // 1-10
-  const [verticalStretch, setVerticalStretch] = useState(1.0); // 1.0 = no stretch
+  const [verticalStretch, setVerticalStretch] = useState(1.25); // default 1.25 = kompensasi printer thermal
 
   // PDF Converter ref
   const pdfConverterRef = useRef<PdfConverterRef>(null);

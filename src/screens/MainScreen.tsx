@@ -466,7 +466,7 @@ export default function MainScreen() {
               </View>
             ) : null}
             {/* Empty state */}
-            {((tab === 'img' && !imageUri) || (tab === 'pdf' && !pdfUri) || (tab === 'code' && !codeInput.trim())) && tab !== 'resi' && (
+            {((tab === 'img' && !imageUri) || (tab === 'pdf' && !pdfUri) || (tab === 'code' && !codeInput.trim())) && (tab as string) !== 'resi' && (
               <View style={s.empty}>
                 <Ionicons name="print" size={32} color="rgba(0,0,0,0.15)" />
                 <Text style={s.emptyTxt}>Siap Mencetak</Text>

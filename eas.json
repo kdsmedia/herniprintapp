@@ -15,9 +15,11 @@
     },
     "preview": {
       "distribution": "internal",
+      "credentialsSource": "remote",
       "android": {
         "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
+        "gradleCommand": ":app:assembleRelease",
+        "withoutCredentials": true
       }
     },
     "production": {

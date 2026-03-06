@@ -8,3 +8,8 @@ ios/
 .env
 npm-debug.log
 play-store-key.json
+-e 
+# Keystore & credentials
+*.jks
+*.keystore
+credentials.json

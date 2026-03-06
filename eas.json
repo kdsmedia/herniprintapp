@@ -15,14 +15,14 @@
     },
     "preview": {
       "distribution": "internal",
-      "credentialsSource": "remote",
+      "credentialsSource": "local",
       "android": {
         "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease",
-        "withoutCredentials": true
+        "gradleCommand": ":app:assembleRelease"
       }
     },
     "production": {
+      "credentialsSource": "local",
       "android": {
         "buildType": "app-bundle"
       },

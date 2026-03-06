@@ -7,3 +7,4 @@ ios/
 *.jks
 .env
 npm-debug.log
+play-store-key.json

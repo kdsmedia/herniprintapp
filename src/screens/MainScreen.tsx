@@ -145,40 +145,73 @@ export default function MainScreen() {
       if (isPdf) {
         setPdfUri(a.uri);
         setPdfName(a.name || 'dokumen.pdf');
-        setPdfImageUri(null); // Reset previous conversion
-        // Auto-convert will trigger via useEffect below
+        setPdfImageUri(null);
+        setPdfConverting(true); // Show loading immediately
       } else {
+        // If user picks an image from PDF picker, switch to image tab
         setImageUri(a.uri);
         setTab('img');
       }
     }
   };
 
-  // Auto-convert PDF to image when pdfUri changes
+  const clearPdf = () => {
+    setPdfUri(null);
+    setPdfName('');
+    setPdfImageUri(null);
+    setPdfConverting(false);
+  };
+
+  // Auto-convert PDF to image immediately after upload
   React.useEffect(() => {
-    if (!pdfUri || !pdfCaptureRef.current) return;
+    if (!pdfUri) return;
     let cancelled = false;
 
     const convertPdf = async () => {
       setPdfConverting(true);
       setPdfImageUri(null);
+
+      // Wait for PdfCapture component to mount
+      let retries = 0;
+      while (!pdfCaptureRef.current && retries < 10) {
+        await new Promise(r => setTimeout(r, 200));
+        retries++;
+      }
+
+      if (!pdfCaptureRef.current) {
+        if (!cancelled) {
+          setPdfConverting(false);
+          Alert.alert('Error', 'Gagal memuat renderer PDF. Coba lagi.');
+        }
+        return;
+      }
+
       try {
-        const uri = await pdfCaptureRef.current!.capture(pdfUri, 1);
+        const uri = await pdfCaptureRef.current.capture(pdfUri, 1);
         if (!cancelled) {
           setPdfImageUri(uri);
         }
       } catch (e: any) {
         if (!cancelled) {
           console.warn('PDF auto-convert failed:', e.message);
-          // Not critical — user can still print, just no preview
+          // Retry once after a longer delay
+          try {
+            await new Promise(r => setTimeout(r, 1000));
+            if (pdfCaptureRef.current && !cancelled) {
+              const uri = await pdfCaptureRef.current.capture(pdfUri, 1);
+              if (!cancelled) setPdfImageUri(uri);
+            }
+          } catch {
+            if (!cancelled) Alert.alert('Konversi Gagal', 'PDF tidak bisa dikonversi ke gambar. Coba file lain.');
+          }
         }
       } finally {
         if (!cancelled) setPdfConverting(false);
       }
     };
 
-    // Small delay to ensure PdfCapture is mounted
-    const timer = setTimeout(convertPdf, 300);
+    // Small initial delay for component mounting
+    const timer = setTimeout(convertPdf, 200);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [pdfUri]);
 
@@ -529,11 +562,41 @@ export default function MainScreen() {
         )}
 
         {tab === 'pdf' && (
-          <TouchableOpacity style={[s.uploadBox, { borderColor: 'rgba(239,68,68,0.3)' }]} onPress={pickPdf} activeOpacity={0.8}>
-            <Ionicons name="document-text" size={36} color="#ef4444" />
-            <Text style={s.uploadTitle}>Unggah Dokumen PDF</Text>
-            <Text style={s.uploadSub}>Halaman pertama akan otomatis dikonversi</Text>
-          </TouchableOpacity>
+          <View style={{ gap: 10 }}>
+            {/* Upload / Change button */}
+            <TouchableOpacity style={[s.uploadBox, { borderColor: pdfUri ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.3)' }]} onPress={pickPdf} activeOpacity={0.8}>
+              <Ionicons name={pdfUri ? 'swap-horizontal' : 'document-text'} size={pdfUri ? 24 : 36} color={pdfUri ? '#10b981' : '#ef4444'} />
+              <Text style={s.uploadTitle}>{pdfUri ? 'Ganti File PDF' : 'Unggah Dokumen PDF'}</Text>
+              <Text style={s.uploadSub}>{pdfUri ? pdfName : 'Halaman pertama otomatis dikonversi ke gambar'}</Text>
+            </TouchableOpacity>
+
+            {/* PDF conversion status */}
+            {pdfUri && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {pdfConverting ? (
+                    <>
+                      <ActivityIndicator size="small" color="#f59e0b" />
+                      <Text style={{ fontSize: 10, color: '#f59e0b', fontWeight: '600' }}>Mengkonversi PDF ke gambar...</Text>
+                    </>
+                  ) : pdfImageUri ? (
+                    <>
+                      <Ionicons name="checkmark-circle" size={14} color="#10b981" />
+                      <Text style={{ fontSize: 10, color: '#10b981', fontWeight: '600' }}>✅ Berhasil dikonversi — siap cetak</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="alert-circle" size={14} color="#ef4444" />
+                      <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '600' }}>Konversi gagal</Text>
+                    </>
+                  )}
+                </View>
+                <TouchableOpacity onPress={clearPdf}>
+                  <Ionicons name="close-circle" size={20} color="rgba(255,255,255,0.3)" />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         )}
 
         {tab === 'resi' && (
@@ -610,24 +673,36 @@ export default function MainScreen() {
             {tab === 'img' && imageUri && (
               <Image source={{ uri: imageUri }} style={{ width: '100%', height: 180 }} resizeMode="contain" />
             )}
-            {/* PDF preview */}
+            {/* PDF preview — shows converted image */}
             {tab === 'pdf' && pdfUri && (
-              <View style={{ alignItems: 'center', gap: 6 }}>
-                {pdfConverting && (
-                  <View style={{ alignItems: 'center', paddingVertical: 20, gap: 8 }}>
-                    <ActivityIndicator size="small" color="#ef4444" />
-                    <Text style={{ fontSize: 9, color: '#999' }}>Mengkonversi PDF...</Text>
+              <View style={{ alignItems: 'center', gap: 8 }}>
+                {pdfConverting ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 40, gap: 10 }}>
+                    <ActivityIndicator size="large" color="#f59e0b" />
+                    <Text style={{ fontSize: 11, color: '#f59e0b', fontWeight: '600' }}>Mengkonversi PDF...</Text>
+                    <Text style={{ fontSize: 9, color: '#888' }}>Harap tunggu sebentar</Text>
+                  </View>
+                ) : pdfImageUri ? (
+                  <View style={{ width: '100%', alignItems: 'center' }}>
+                    <Image source={{ uri: pdfImageUri }} style={{ width: '100%', height: 300 }} resizeMode="contain" />
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
+                      <Ionicons name="checkmark-circle" size={12} color="#10b981" />
+                      <Text style={{ fontSize: 9, color: '#10b981', fontWeight: '700' }}>SIAP CETAK</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={{ alignItems: 'center', paddingVertical: 30, gap: 8 }}>
+                    <Ionicons name="alert-circle" size={36} color="#ef4444" />
+                    <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '600' }}>Konversi gagal</Text>
+                    <TouchableOpacity
+                      style={{ backgroundColor: 'rgba(239,68,68,0.15)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }}
+                      onPress={() => { const uri = pdfUri; setPdfUri(null); setTimeout(() => setPdfUri(uri), 100); }}
+                    >
+                      <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '700' }}>Coba Lagi</Text>
+                    </TouchableOpacity>
                   </View>
                 )}
-                {pdfImageUri ? (
-                  <Image source={{ uri: pdfImageUri }} style={{ width: '100%', height: 250 }} resizeMode="contain" />
-                ) : !pdfConverting ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 20, gap: 6 }}>
-                    <Ionicons name="document-text" size={40} color="#ef4444" />
-                  </View>
-                ) : null}
-                <Text style={{ fontSize: 9, fontWeight: '600', color: '#666', textAlign: 'center' }}>{pdfName}</Text>
-                {pdfImageUri && <Text style={{ fontSize: 8, color: '#10b981' }}>✅ Siap cetak</Text>}
+                <Text style={{ fontSize: 9, fontWeight: '600', color: '#888', textAlign: 'center' }}>{pdfName}</Text>
               </View>
             )}
             {/* Resi/Label preview */}
@@ -725,7 +800,7 @@ export default function MainScreen() {
       <AdBanner />
 
       {/* ═══ HIDDEN PDF CAPTURE ═══ */}
-      <PdfCapture ref={pdfCaptureRef} renderWidth={PAPER[paperWidth].dots} />
+      <PdfCapture ref={pdfCaptureRef} renderWidth={printerMode === 'thermal' ? PAPER[paperWidth].dots : 800} />
 
       {/* ═══ PRINT PROGRESS ═══ */}
       <PrintProgress

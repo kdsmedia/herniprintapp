@@ -155,7 +155,17 @@ export default function MainScreen() {
       else if (tab === 'pdf') {
         if (pdfUri) {
           // PDF: use Android print dialog
-          await Print.printAsync({ uri: pdfUri });
+          // On Android, Print.printAsync expects a content URI or a file URI that the system can access.
+          // DocumentPicker might return a file URI that needs to be copied to a more accessible location
+          // or handled differently for system printing.
+          // For now, we assume the URI from DocumentPicker is directly usable.
+          // If this fails, further investigation into file access permissions or URI conversion is needed.
+          try {
+            await Print.printAsync({ uri: pdfUri });
+          } catch (printError: any) {
+            Alert.alert('Gagal Mencetak PDF', `Terjadi kesalahan saat mencetak: ${printError.message}. Pastikan layanan cetak diaktifkan dan file dapat diakses.`);
+            console.error('PDF Print Error:', printError);
+          }
         } else {
           Alert.alert('Pilih File', 'Unggah PDF terlebih dahulu.');
           return;

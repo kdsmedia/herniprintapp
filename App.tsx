@@ -13,7 +13,9 @@ SplashScreen.preventAutoHideAsync();
 export default function App() {
   useEffect(() => {
     SplashScreen.hideAsync();
-    mobileAds().initialize().catch(() => {});
+    mobileAds().initialize().catch((error) => {
+      console.error("AdMob initialization failed:", error);
+    });
   }, []);
 
   return (

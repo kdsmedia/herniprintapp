@@ -204,8 +204,13 @@ export function generateEscPosBarcode(text: string, paperDots: number): Uint8Arr
   // GS H — Print HRI below barcode
   data.push(GS, 0x48, 0x02);
   // GS k — Print CODE128
-  data.push(GS, 0x6b, 0x49, text.length + 2, 0x7b, 0x42); // {B prefix for Code Set B
-  data.push(...encodeText(text));
+  // Using CODE128 with auto-selection of character set (m=73, 0x49)
+  // n = length of data (including start code if explicitly sent)
+  // For CODE128, the data usually includes the start code. {B is for Code Set B.
+  // The length parameter 'n' should be the length of the data that follows, including the start code.
+  const barcodeData = encodeText("{B" + text); // Add start code for Code Set B
+  data.push(GS, 0x6b, 0x49, barcodeData.length); // m=0x49 (CODE128), n=length of data
+  data.push(...barcodeData);
 
   data.push(...CMD.FEED_3);
   data.push(...CMD.CUT);

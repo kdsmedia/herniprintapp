@@ -1,6 +1,12 @@
 /**
  * ESC/POS Command Builder for Thermal Printers
  * Supports: raster image printing, text commands, QR codes, barcodes
+ *
+ * IMPORTANT for images:
+ * - Height is NEVER limited — the full image is printed
+ * - Line spacing is set to 0 before raster to prevent vertical gaps
+ * - ESC @ (init) is called only ONCE, not per band
+ * - Aspect ratio is 1:1 — circles print as circles
  */
 
 import { PaperWidth, PAPER } from '../constants/theme';
@@ -23,6 +29,9 @@ export const CMD = {
   DOUBLE_BOTH: [ESC, 0x21, 0x30],
   NORMAL_SIZE: [ESC, 0x21, 0x00],
   FEED_3: [LF, LF, LF],
+  // Line spacing commands
+  LINE_SPACING_DEFAULT: [ESC, 0x32],               // Reset to default line spacing
+  LINE_SPACING_ZERO: [ESC, 0x33, 0x00],            // Set line spacing to 0 (crucial for images!)
 };
 
 export type Alignment = 'left' | 'center' | 'right';
@@ -37,33 +46,19 @@ export interface ReceiptLine {
 
 // ─── Text Encoding ────────────────────────────────────────
 function encodeText(text: string): number[] {
-  // Encode text using CP437-compatible mapping for thermal printers
-  // Common Indonesian characters (é, è, ê, ü, etc.) are mapped where possible
   const bytes: number[] = [];
   for (let i = 0; i < text.length; i++) {
     const code = text.charCodeAt(i);
     if (code <= 127) {
       bytes.push(code);
     } else {
-      // Map common extended characters to CP437 equivalents
       const cp437Map: Record<number, number> = {
-        0xE9: 0x82, // é
-        0xE8: 0x8A, // è
-        0xEA: 0x88, // ê
-        0xEB: 0x89, // ë
-        0xE0: 0x85, // à
-        0xE1: 0xA0, // á
-        0xE2: 0x83, // â
-        0xE4: 0x84, // ä
-        0xF6: 0x94, // ö
-        0xFC: 0x81, // ü
-        0xF1: 0xA4, // ñ
-        0xE7: 0x87, // ç
-        0xB0: 0xF8, // °
-        0xA9: 0x63, // © → c
-        0xAE: 0x52, // ® → R
+        0xE9: 0x82, 0xE8: 0x8A, 0xEA: 0x88, 0xEB: 0x89,
+        0xE0: 0x85, 0xE1: 0xA0, 0xE2: 0x83, 0xE4: 0x84,
+        0xF6: 0x94, 0xFC: 0x81, 0xF1: 0xA4, 0xE7: 0x87,
+        0xB0: 0xF8, 0xA9: 0x63, 0xAE: 0x52,
       };
-      bytes.push(cp437Map[code] || 0x3f); // Fallback to '?' for unmapped
+      bytes.push(cp437Map[code] || 0x3f);
     }
   }
   return bytes;
@@ -72,28 +67,21 @@ function encodeText(text: string): number[] {
 // ─── Build Receipt from Text Lines ────────────────────────
 export function buildReceiptCommands(lines: ReceiptLine[]): Uint8Array {
   const data: number[] = [...CMD.INIT];
-  // Set left margin to 0 for consistent centering
-  data.push(GS, 0x4c, 0x00, 0x00);
+  data.push(GS, 0x4c, 0x00, 0x00); // Left margin = 0
 
   for (const line of lines) {
-    // Alignment
     if (line.align === 'center') data.push(...CMD.ALIGN_CENTER);
     else if (line.align === 'right') data.push(...CMD.ALIGN_RIGHT);
     else data.push(...CMD.ALIGN_LEFT);
 
-    // Bold
     if (line.bold) data.push(...CMD.BOLD_ON);
 
-    // Size
     if (line.size === 'large') data.push(...CMD.DOUBLE_BOTH);
-    else if (line.size === 'small') data.push(...CMD.NORMAL_SIZE);
     else data.push(...CMD.NORMAL_SIZE);
 
-    // Text
     data.push(...encodeText(line.text));
     data.push(LF);
 
-    // Reset
     if (line.bold) data.push(...CMD.BOLD_OFF);
     if (line.size === 'large') data.push(...CMD.NORMAL_SIZE);
   }
@@ -124,31 +112,35 @@ export function buildSeparator(paperWidth: PaperWidth, char: '=' | '-' = '='): R
 }
 
 // ─── Image to ESC/POS Raster (GS v 0) ────────────────────
-// Floyd-Steinberg dithering + band slicing for compatibility
-// Image is centered on paper: padded with white if narrower than paper width
+//
+// IMPORTANT DESIGN DECISIONS:
+// 1. Height is UNLIMITED — the entire image is printed, no cropping
+// 2. ESC 3 0 sets line spacing to 0 BEFORE raster → no vertical gaps between bands
+// 3. ESC @ (INIT) is called only ONCE at the start, NOT per band
+// 4. After image, line spacing is restored to default for subsequent text
+// 5. Floyd-Steinberg dithering for best quality B/W conversion
+//
 export function pixelsToEscPos(
-  pixels: Uint8Array, // RGBA pixel data
-  width: number,
-  height: number,
+  pixels: Uint8Array,   // RGBA pixel data
+  width: number,        // Image width in pixels
+  height: number,       // Image height in pixels (NO LIMIT)
   contrast: number = 1.0,
-  paperDots?: number, // Optional: paper width in dots (384 or 576) for centering
+  paperDots?: number,   // Paper width in dots (384 or 576) for alignment
   align: 'left' | 'center' | 'right' = 'center',
 ): Uint8Array {
-  // Determine output width — use paper width for alignment, or image width
+  // Determine output width
   const outputWidth = paperDots || width;
-  // Ensure output width is multiple of 8 (required by ESC/POS raster)
   const alignedWidth = Math.ceil(outputWidth / 8) * 8;
   const widthBytes = alignedWidth / 8;
 
-  // Calculate left padding based on alignment
+  // Calculate left padding for alignment
   let padLeft = 0;
   if (paperDots && width < alignedWidth) {
     if (align === 'center') padLeft = Math.floor((alignedWidth - width) / 2);
     else if (align === 'right') padLeft = alignedWidth - width;
-    // 'left' → padLeft = 0
   }
 
-  // Convert to grayscale with ITU-R BT.601 (white background for transparency)
+  // Convert to grayscale — ITU-R BT.601, white background for transparency
   const gray = new Float32Array(width * height);
   for (let i = 0; i < width * height; i++) {
     const idx = i * 4;
@@ -179,41 +171,59 @@ export function pixelsToEscPos(
     }
   }
 
-  // Build ESC/POS raster data
-  // Set center alignment before image
-  const data: number[] = [...CMD.INIT, ...CMD.ALIGN_CENTER];
+  // ═══ Build ESC/POS raster data ═══
+  const data: number[] = [];
 
-  // Set left margin to 0 to let raster centering work via padding
-  // GS L — Set left margin to 0
+  // 1. Initialize printer ONCE
+  data.push(...CMD.INIT);
+
+  // 2. Set alignment
+  data.push(...CMD.ALIGN_CENTER);
+
+  // 3. Set left margin to 0
   data.push(GS, 0x4c, 0x00, 0x00);
 
+  // 4. ★ CRUCIAL: Set line spacing to 0 before image
+  //    This prevents vertical gaps between raster bands
+  //    Without this, some printers add default line spacing (~3.75mm)
+  //    between each GS v 0 band, causing the image to stretch vertically
+  //    or appear with horizontal white lines
+  data.push(...CMD.LINE_SPACING_ZERO);
+
+  // 5. Send image in bands (max 255 rows per GS v 0 command)
+  //    Height is NOT limited — all rows are sent
   const maxBandHeight = 255;
 
   for (let bandStart = 0; bandStart < height; bandStart += maxBandHeight) {
     const bandHeight = Math.min(maxBandHeight, height - bandStart);
 
-    // GS v 0 — raster bit image (mode 0 = normal)
+    // GS v 0 — raster bit image (mode 0 = normal, no scaling)
     data.push(GS, 0x76, 0x30, 0x00);
     data.push(widthBytes & 0xff, (widthBytes >> 8) & 0xff);
     data.push(bandHeight & 0xff, (bandHeight >> 8) & 0xff);
 
+    // Pack pixel rows into bytes
     for (let y = bandStart; y < bandStart + bandHeight; y++) {
       for (let xByte = 0; xByte < widthBytes; xByte++) {
         let byte = 0;
         for (let bit = 0; bit < 8; bit++) {
-          const pixelX = xByte * 8 + bit - padLeft; // Offset by padding
+          const pixelX = xByte * 8 + bit - padLeft;
           if (pixelX >= 0 && pixelX < width && gray[y * width + pixelX] < 128) {
             byte |= (0x80 >> bit);
           }
-          // Pixels outside image area stay 0 (white)
         }
         data.push(byte);
       }
     }
   }
 
+  // 6. Restore default line spacing (for any text printed after image)
+  data.push(...CMD.LINE_SPACING_DEFAULT);
+
+  // 7. Feed and cut
   data.push(...CMD.FEED_3);
   data.push(...CMD.CUT);
+
   return new Uint8Array(data);
 }
 
@@ -223,7 +233,6 @@ export function generateEscPosQR(text: string, paperDots: number): Uint8Array {
   const textBytes = encodeText(text);
   const store_len = textBytes.length + 3;
 
-  // GS ( k — QR Code
   // Function 165: Select model (Model 2)
   data.push(GS, 0x28, 0x6b, 4, 0, 0x31, 0x41, 0x32, 0x00);
   // Function 167: Set module size (6 dots)
@@ -252,12 +261,8 @@ export function generateEscPosBarcode(text: string, paperDots: number): Uint8Arr
   // GS H — Print HRI below barcode
   data.push(GS, 0x48, 0x02);
   // GS k — Print CODE128
-  // Using CODE128 with auto-selection of character set (m=73, 0x49)
-  // n = length of data (including start code if explicitly sent)
-  // For CODE128, the data usually includes the start code. {B is for Code Set B.
-  // The length parameter 'n' should be the length of the data that follows, including the start code.
-  const barcodeData = encodeText("{B" + text); // Add start code for Code Set B
-  data.push(GS, 0x6b, 0x49, barcodeData.length); // m=0x49 (CODE128), n=length of data
+  const barcodeData = encodeText("{B" + text);
+  data.push(GS, 0x6b, 0x49, barcodeData.length);
   data.push(...barcodeData);
 
   data.push(...CMD.FEED_3);

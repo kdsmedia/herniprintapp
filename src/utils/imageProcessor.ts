@@ -1,6 +1,9 @@
 /**
  * Image Processing for Thermal Printing
  * Converts images to grayscale pixel data suitable for ESC/POS raster printing
+ *
+ * IMPORTANT: Height is NEVER limited. The output height is proportional
+ * to the original image aspect ratio. A square image will produce square pixels.
  */
 
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -9,14 +12,28 @@ import { Buffer } from 'buffer';
 
 /**
  * Process an image URI for thermal printing
- * 1. Resize to fit paper width
+ * 1. Resize to fit paper width (height is proportional — NEVER limited)
  * 2. Extract pixel data as RGBA Uint8Array
+ *
+ * @param imageUri - URI of the image to process
+ * @param targetWidth - Paper width in dots (384 for 58mm, 576 for 80mm)
+ * @param options.landscape - Rotate 90° before processing
+ * @param options.sharpness - Sharpness level (unused currently, reserved)
+ * @returns Pixel data with exact aspect ratio preserved
  */
 export async function processImageForPrint(
   imageUri: string,
   targetWidth: number,
   options?: { landscape?: boolean; sharpness?: number },
 ): Promise<{ pixels: Uint8Array; width: number; height: number }> {
+  // Step 1: Get original image dimensions first
+  const original = await ImageManipulator.manipulateAsync(imageUri, [], {
+    format: ImageManipulator.SaveFormat.PNG,
+    compress: 1,
+  });
+  const origW = original.width;
+  const origH = original.height;
+
   // Build manipulation actions
   const actions: ImageManipulator.Action[] = [];
 
@@ -25,41 +42,49 @@ export async function processImageForPrint(
     actions.push({ rotate: 90 });
   }
 
-  // Resize to target width
-  actions.push({ resize: { width: targetWidth } });
+  // Calculate exact target dimensions preserving aspect ratio
+  // After rotation: landscape swaps width/height
+  const effectiveW = options?.landscape ? origH : origW;
+  const effectiveH = options?.landscape ? origW : origH;
+  const aspectRatio = effectiveH / effectiveW;
+  const targetHeight = Math.round(targetWidth * aspectRatio);
 
-  // Step 1: Resize (and optionally rotate) image
+  // Resize with EXPLICIT width AND height to guarantee aspect ratio
+  // Height is NOT limited — it matches the original proportions exactly
+  actions.push({ resize: { width: targetWidth, height: targetHeight } });
+
+  // Step 2: Resize (and optionally rotate) image
   const resized = await ImageManipulator.manipulateAsync(
     imageUri,
     actions,
     { format: ImageManipulator.SaveFormat.PNG, compress: 1 }
   );
 
-  // Step 2: Read the PNG file as base64
+  // Step 3: Read the PNG file as base64
   const base64 = await FileSystem.readAsStringAsync(resized.uri, {
     encoding: FileSystem.EncodingType.Base64,
   });
 
-  // Step 3: Decode PNG to get pixel data
+  // Step 4: Decode PNG to get pixel data
   const pngBuffer = Buffer.from(base64, 'base64');
   const result = decodePNG(pngBuffer);
 
   if (result) {
+    // Verify dimensions match expectations
+    console.log(`[ImageProcessor] Input: ${origW}x${origH} → Output: ${result.width}x${result.height} (target: ${targetWidth}x${targetHeight})`);
     return result;
   }
 
-  // Fallback: create a simple white image
+  // Fallback: create a simple white image with correct dimensions
   console.warn('PNG decode failed, creating white fallback');
-  const width = targetWidth;
-  const height = Math.round(targetWidth * (resized.height / resized.width));
-  const pixels = new Uint8Array(width * height * 4);
+  const pixels = new Uint8Array(targetWidth * targetHeight * 4);
   for (let i = 0; i < pixels.length; i += 4) {
     pixels[i] = 255;     // R
     pixels[i + 1] = 255; // G
     pixels[i + 2] = 255; // B
     pixels[i + 3] = 255; // A
   }
-  return { pixels, width, height };
+  return { pixels, width: targetWidth, height: targetHeight };
 }
 
 // ─── PNG Decoder ──────────────────────────────────────────

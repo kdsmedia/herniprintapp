@@ -72,6 +72,8 @@ function encodeText(text: string): number[] {
 // ─── Build Receipt from Text Lines ────────────────────────
 export function buildReceiptCommands(lines: ReceiptLine[]): Uint8Array {
   const data: number[] = [...CMD.INIT];
+  // Set left margin to 0 for consistent centering
+  data.push(GS, 0x4c, 0x00, 0x00);
 
   for (const line of lines) {
     // Alignment
@@ -118,20 +120,29 @@ export function buildTwoColumn(
 // ─── Separator Line ───────────────────────────────────────
 export function buildSeparator(paperWidth: PaperWidth, char: '=' | '-' = '='): ReceiptLine {
   const maxChars = paperWidth === 58 ? 32 : 48;
-  return { text: char.repeat(maxChars), align: 'left' };
+  return { text: char.repeat(maxChars), align: 'center' };
 }
 
 // ─── Image to ESC/POS Raster (GS v 0) ────────────────────
 // Floyd-Steinberg dithering + band slicing for compatibility
+// Image is centered on paper: padded with white if narrower than paper width
 export function pixelsToEscPos(
   pixels: Uint8Array, // RGBA pixel data
   width: number,
   height: number,
-  contrast: number = 1.0
+  contrast: number = 1.0,
+  paperDots?: number, // Optional: paper width in dots (384 or 576) for centering
 ): Uint8Array {
-  const widthBytes = Math.ceil(width / 8);
+  // Determine output width — use paper width for centering, or image width
+  const outputWidth = paperDots || width;
+  // Ensure output width is multiple of 8 (required by ESC/POS raster)
+  const alignedWidth = Math.ceil(outputWidth / 8) * 8;
+  const widthBytes = alignedWidth / 8;
 
-  // Convert to grayscale with ITU-R BT.601
+  // Calculate left padding to center the image
+  const padLeft = Math.max(0, Math.floor((alignedWidth - width) / 2));
+
+  // Convert to grayscale with ITU-R BT.601 (white background for transparency)
   const gray = new Float32Array(width * height);
   for (let i = 0; i < width * height; i++) {
     const idx = i * 4;
@@ -162,14 +173,20 @@ export function pixelsToEscPos(
     }
   }
 
-  // Build ESC/POS with band slicing (max 255 rows per band)
-  const data: number[] = [...CMD.INIT];
+  // Build ESC/POS raster data
+  // Set center alignment before image
+  const data: number[] = [...CMD.INIT, ...CMD.ALIGN_CENTER];
+
+  // Set left margin to 0 to let raster centering work via padding
+  // GS L — Set left margin to 0
+  data.push(GS, 0x4c, 0x00, 0x00);
+
   const maxBandHeight = 255;
 
   for (let bandStart = 0; bandStart < height; bandStart += maxBandHeight) {
     const bandHeight = Math.min(maxBandHeight, height - bandStart);
 
-    // GS v 0 — raster bit image
+    // GS v 0 — raster bit image (mode 0 = normal)
     data.push(GS, 0x76, 0x30, 0x00);
     data.push(widthBytes & 0xff, (widthBytes >> 8) & 0xff);
     data.push(bandHeight & 0xff, (bandHeight >> 8) & 0xff);
@@ -178,10 +195,11 @@ export function pixelsToEscPos(
       for (let xByte = 0; xByte < widthBytes; xByte++) {
         let byte = 0;
         for (let bit = 0; bit < 8; bit++) {
-          const x = xByte * 8 + bit;
-          if (x < width && gray[y * width + x] < 128) {
+          const pixelX = xByte * 8 + bit - padLeft; // Offset by padding
+          if (pixelX >= 0 && pixelX < width && gray[y * width + pixelX] < 128) {
             byte |= (0x80 >> bit);
           }
+          // Pixels outside image area stay 0 (white)
         }
         data.push(byte);
       }

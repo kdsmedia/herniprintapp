@@ -87,6 +87,8 @@ function buildPrintHtml(
     align-items: center;
     justify-content: center;
     background: white;
+    width: 100%;
+    min-height: 100vh;
   }
   .print-content {
     width: 100%;
@@ -94,12 +96,15 @@ function buildPrintHtml(
     display: flex;
     align-items: center;
     justify-content: center;
+    text-align: center;
     ${settings.borderMode === 'borderless' ? '' : 'padding: 10mm;'}
   }
   img {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
+    display: block;
+    margin: 0 auto;
     ${settings.quality === 'high' ? 'image-rendering: high-quality;' : ''}
   }
   .receipt-text {

@@ -307,7 +307,7 @@ export default function MainScreen() {
         setPrintProgress(40);
         setPrintStatus('Mengkonversi untuk printer...');
 
-        const escData = pixelsToEscPos(pixels, width, height, contrast);
+        const escData = pixelsToEscPos(pixels, width, height, contrast, dots);
         setPrintProgress(50);
         setPrintStage('sending');
         setPrintStatus('Mengirim ke printer...');
@@ -345,7 +345,7 @@ export default function MainScreen() {
         setPrintProgress(60);
 
         setPrintStatus('Mengkonversi ke ESC/POS...');
-        const escData = pixelsToEscPos(pixels, width, height, contrast);
+        const escData = pixelsToEscPos(pixels, width, height, contrast, dots);
         setPrintProgress(70);
         setPrintStage('sending');
         setPrintStatus('Mengirim ke printer...');

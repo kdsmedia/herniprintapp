@@ -824,7 +824,7 @@ const s = StyleSheet.create({
   headerBtn: { width: 44, height: 44, borderRadius: 16, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.bgCardBorder, alignItems: 'center', justifyContent: 'center' },
 
   main: { flex: 1 },
-  mainInner: { paddingHorizontal: 16, paddingBottom: 100, gap: 16 },
+  mainInner: { paddingHorizontal: 16, paddingBottom: 160, gap: 16 },
 
   // Tabs
   tabBar: { flexDirection: 'row', backgroundColor: COLORS.bgCard, borderRadius: 16, borderWidth: 1, borderColor: COLORS.bgCardBorder, padding: 5, gap: 4 },
@@ -893,8 +893,8 @@ const s = StyleSheet.create({
   ctrlBtnActive: { backgroundColor: COLORS.primary },
   ctrlBtnTxt: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted },
 
-  // FAB
-  fab: { position: 'absolute', bottom: 50, alignSelf: 'center', width: 72, height: 72, borderRadius: 36, overflow: 'hidden', elevation: 20, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.5, shadowRadius: 24 },
+  // FAB — positioned above banner ad (~60px banner height)
+  fab: { position: 'absolute', bottom: 75, alignSelf: 'center', width: 72, height: 72, borderRadius: 36, overflow: 'hidden', elevation: 20, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.5, shadowRadius: 24, zIndex: 20 },
   fabGradient: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
 
   // Modal

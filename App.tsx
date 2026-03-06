@@ -6,6 +6,7 @@ import mobileAds from 'react-native-google-mobile-ads';
 import { AppProvider } from './src/contexts/AppContext';
 import MainScreen from './src/screens/MainScreen';
 import { COLORS } from './src/constants/theme';
+import { showAppOpenAd } from './src/utils/ads';
 
 LogBox.ignoreLogs(['new NativeEventEmitter']);
 SplashScreen.preventAutoHideAsync();
@@ -60,10 +61,26 @@ const eb = StyleSheet.create({
 // ─── App ──────────────────────────────────────────────────
 export default function App() {
   useEffect(() => {
-    SplashScreen.hideAsync();
-    mobileAds().initialize().catch((error) => {
-      console.error("AdMob initialization failed:", error);
-    });
+    const init = async () => {
+      try {
+        // 1. Initialize AdMob SDK
+        await mobileAds().initialize();
+        console.log('AdMob initialized');
+
+        // 2. Hide splash screen
+        await SplashScreen.hideAsync();
+
+        // 3. Show app-open ad after splash (slight delay for smooth transition)
+        setTimeout(() => {
+          showAppOpenAd().catch(() => {});
+        }, 1500);
+      } catch (error) {
+        console.error('Init error:', error);
+        SplashScreen.hideAsync();
+      }
+    };
+
+    init();
   }, []);
 
   return (

@@ -1,6 +1,14 @@
 /**
- * AdMob ad management utilities.
- * Handles interstitial, rewarded, and app-open ads.
+ * AdMob Ad Management
+ * Handles all ad types: interstitial, rewarded, app-open
+ * Banner is handled by AdBanner component
+ * 
+ * Ad IDs:
+ * - Banner: ca-app-pub-6881903056221433/8151836929
+ * - Interstitial: ca-app-pub-6881903056221433/4583628593
+ * - Native: ca-app-pub-6881903056221433/6255802918
+ * - Rewarded: ca-app-pub-6881903056221433/5792768487
+ * - App Open: ca-app-pub-6881903056221433/6607156703
  */
 
 import {
@@ -12,114 +20,155 @@ import {
 } from 'react-native-google-mobile-ads';
 import { getAdId } from '../constants/ads';
 
-// Track ad frequency
+// ─── Cooldowns ────────────────────────────────────────────
 let lastInterstitialTime = 0;
-const INTERSTITIAL_COOLDOWN_MS = 60000; // 1 minute between interstitials
+let lastAppOpenTime = 0;
+const INTERSTITIAL_COOLDOWN = 60_000;  // 1 min between interstitials
+const APP_OPEN_COOLDOWN = 300_000;     // 5 min between app-open ads
 
+// ─── Ad Instances ─────────────────────────────────────────
 let interstitialAd: InterstitialAd | null = null;
-let rewardedAd: RewardedAd | null = null;
-let appOpenAd: AppOpenAd | null = null;
+let interstitialLoaded = false;
 
-/**
- * Preload an interstitial ad.
- */
+// ─── Interstitial ─────────────────────────────────────────
 export function preloadInterstitial(): void {
-  interstitialAd = InterstitialAd.createForAdRequest(getAdId('INTERSTITIAL'), {
-    requestNonPersonalizedAdsOnly: false,
-  });
-  interstitialAd.load();
-}
-
-/**
- * Show interstitial ad with cooldown.
- * Returns true if ad was shown.
- */
-export function showInterstitial(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const now = Date.now();
-    if (now - lastInterstitialTime < INTERSTITIAL_COOLDOWN_MS) {
-      resolve(false);
-      return;
-    }
-
-    if (!interstitialAd) {
-      preloadInterstitial();
-      resolve(false);
-      return;
-    }
-
-    const unsubLoaded = interstitialAd.addAdEventListener(AdEventType.LOADED, () => {
-      interstitialAd?.show();
-    });
-
-    const unsubClosed = interstitialAd.addAdEventListener(AdEventType.CLOSED, () => {
-      lastInterstitialTime = Date.now();
-      unsubLoaded();
-      unsubClosed();
-      // Preload next
-      preloadInterstitial();
-      resolve(true);
-    });
-
-    const unsubError = interstitialAd.addAdEventListener(AdEventType.ERROR, () => {
-      unsubLoaded();
-      unsubClosed();
-      unsubError();
-      preloadInterstitial();
-      resolve(false);
-    });
-
-    interstitialAd.load();
-  });
-}
-
-/**
- * Show rewarded ad.
- * Returns true if reward was earned.
- */
-export function showRewarded(): Promise<boolean> {
-  return new Promise((resolve) => {
-    rewardedAd = RewardedAd.createForAdRequest(getAdId('REWARDED'), {
+  try {
+    interstitialLoaded = false;
+    interstitialAd = InterstitialAd.createForAdRequest(getAdId('INTERSTITIAL'), {
       requestNonPersonalizedAdsOnly: false,
     });
 
-    const unsubEarned = rewardedAd.addAdEventListener(
-      RewardedAdEventType.EARNED_REWARD,
-      () => {
-        resolve(true);
-      }
-    );
-
-    const unsubLoaded = rewardedAd.addAdEventListener(AdEventType.LOADED, () => {
-      rewardedAd?.show();
+    interstitialAd.addAdEventListener(AdEventType.LOADED, () => {
+      interstitialLoaded = true;
     });
 
-    const unsubClosed = rewardedAd.addAdEventListener(AdEventType.CLOSED, () => {
-      unsubEarned();
-      unsubLoaded();
-      unsubClosed();
+    interstitialAd.addAdEventListener(AdEventType.ERROR, () => {
+      interstitialLoaded = false;
+      // Retry after 30s
+      setTimeout(preloadInterstitial, 30_000);
     });
 
-    rewardedAd.load();
+    interstitialAd.addAdEventListener(AdEventType.CLOSED, () => {
+      lastInterstitialTime = Date.now();
+      interstitialLoaded = false;
+      // Preload next ad
+      setTimeout(preloadInterstitial, 5_000);
+    });
 
-    // Timeout
-    setTimeout(() => {
+    interstitialAd.load();
+  } catch (e) {
+    console.warn('Interstitial preload error:', e);
+  }
+}
+
+export async function showInterstitial(): Promise<boolean> {
+  try {
+    const now = Date.now();
+    if (now - lastInterstitialTime < INTERSTITIAL_COOLDOWN) return false;
+    if (!interstitialAd || !interstitialLoaded) {
+      preloadInterstitial();
+      return false;
+    }
+    await interstitialAd.show();
+    return true;
+  } catch (e) {
+    console.warn('Interstitial show error:', e);
+    preloadInterstitial();
+    return false;
+  }
+}
+
+// ─── Rewarded ─────────────────────────────────────────────
+export function showRewarded(): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const ad = RewardedAd.createForAdRequest(getAdId('REWARDED'), {
+        requestNonPersonalizedAdsOnly: false,
+      });
+
+      let earned = false;
+      const cleanup: (() => void)[] = [];
+
+      const unsub1 = ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, () => {
+        earned = true;
+      });
+      cleanup.push(unsub1);
+
+      const unsub2 = ad.addAdEventListener(AdEventType.LOADED, () => {
+        ad.show();
+      });
+      cleanup.push(unsub2);
+
+      const unsub3 = ad.addAdEventListener(AdEventType.CLOSED, () => {
+        cleanup.forEach(fn => fn());
+        resolve(earned);
+      });
+      cleanup.push(unsub3);
+
+      const unsub4 = ad.addAdEventListener(AdEventType.ERROR, () => {
+        cleanup.forEach(fn => fn());
+        resolve(false);
+      });
+      cleanup.push(unsub4);
+
+      ad.load();
+
+      // Timeout safety
+      setTimeout(() => {
+        cleanup.forEach(fn => fn());
+        resolve(false);
+      }, 20_000);
+    } catch (e) {
+      console.warn('Rewarded error:', e);
       resolve(false);
-    }, 15000);
+    }
   });
 }
 
-/**
- * Show app-open ad.
- */
-export function showAppOpenAd(): void {
-  appOpenAd = AppOpenAd.createForAdRequest(getAdId('APP_OPEN'), {
-    requestNonPersonalizedAdsOnly: false,
-  });
+// ─── App Open Ad ──────────────────────────────────────────
+export function showAppOpenAd(): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const now = Date.now();
+      if (now - lastAppOpenTime < APP_OPEN_COOLDOWN) {
+        resolve(false);
+        return;
+      }
 
-  appOpenAd.addAdEventListener(AdEventType.LOADED, () => {
-    appOpenAd?.show();
-  });
+      const ad = AppOpenAd.createForAdRequest(getAdId('APP_OPEN'), {
+        requestNonPersonalizedAdsOnly: false,
+      });
 
-  appOpenAd.load();
+      const cleanup: (() => void)[] = [];
+
+      const unsub1 = ad.addAdEventListener(AdEventType.LOADED, () => {
+        ad.show();
+      });
+      cleanup.push(unsub1);
+
+      const unsub2 = ad.addAdEventListener(AdEventType.CLOSED, () => {
+        lastAppOpenTime = Date.now();
+        cleanup.forEach(fn => fn());
+        resolve(true);
+      });
+      cleanup.push(unsub2);
+
+      const unsub3 = ad.addAdEventListener(AdEventType.ERROR, () => {
+        cleanup.forEach(fn => fn());
+        resolve(false);
+      });
+      cleanup.push(unsub3);
+
+      ad.load();
+
+      // Timeout safety
+      setTimeout(() => {
+        cleanup.forEach(fn => fn());
+        resolve(false);
+      }, 15_000);
+    } catch (e) {
+      console.warn('App open ad error:', e);
+      resolve(false);
+    }
+  });
 }

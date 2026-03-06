@@ -428,6 +428,39 @@ export default function MainScreen() {
           ))}
         </View>
 
+        {/* ═══ PRINTER MODE TOGGLE ═══ */}
+        <View style={s.printerModeCard}>
+          <View style={s.modeRow}>
+            <TouchableOpacity
+              style={[s.printerModeBtn, printerMode === 'thermal' && s.printerModeBtnActive]}
+              onPress={() => setPrinterMode('thermal')}
+            >
+              <Ionicons name="bluetooth" size={14} color={printerMode === 'thermal' ? '#fff' : COLORS.textMuted} />
+              <Text style={[s.printerModeTxt, printerMode === 'thermal' && s.printerModeTxtActive]}>THERMAL</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.printerModeBtn, printerMode === 'standard' && s.printerModeBtnActiveGreen]}
+              onPress={() => setPrinterMode('standard')}
+            >
+              <Ionicons name="print" size={14} color={printerMode === 'standard' ? '#fff' : COLORS.textMuted} />
+              <Text style={[s.printerModeTxt, printerMode === 'standard' && s.printerModeTxtActive]}>PRINTER BESAR</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={s.printerModeHint}>
+            {printerMode === 'thermal'
+              ? '🔵 Cetak hitam-putih via Bluetooth (struk, label, resi)'
+              : '🟢 Cetak warna via WiFi/USB (Epson, Canon, HP, dll)'}
+          </Text>
+        </View>
+
+        {/* ═══ STANDARD PRINT SETTINGS ═══ */}
+        {printerMode === 'standard' && (
+          <StandardPrintSettingsPanel
+            settings={stdSettings}
+            onChange={setStdSettings}
+          />
+        )}
+
         {/* ═══ FORM AREA ═══ */}
         {tab === 'img' && (
           <TouchableOpacity style={s.uploadBox} onPress={pickImage} activeOpacity={0.8}>
@@ -510,39 +543,6 @@ export default function MainScreen() {
             </View>
             <TextInput style={[s.input, { textAlign: 'center', paddingVertical: 12 }]} placeholder="Masukkan Teks atau URL" placeholderTextColor="#64748b" value={codeInput} onChangeText={setCodeInput} />
           </View>
-        )}
-
-        {/* ═══ PRINTER MODE TOGGLE ═══ */}
-        <View style={s.printerModeCard}>
-          <View style={s.modeRow}>
-            <TouchableOpacity
-              style={[s.printerModeBtn, printerMode === 'thermal' && s.printerModeBtnActive]}
-              onPress={() => setPrinterMode('thermal')}
-            >
-              <Ionicons name="bluetooth" size={14} color={printerMode === 'thermal' ? '#fff' : COLORS.textMuted} />
-              <Text style={[s.printerModeTxt, printerMode === 'thermal' && s.printerModeTxtActive]}>THERMAL</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.printerModeBtn, printerMode === 'standard' && s.printerModeBtnActiveGreen]}
-              onPress={() => setPrinterMode('standard')}
-            >
-              <Ionicons name="print" size={14} color={printerMode === 'standard' ? '#fff' : COLORS.textMuted} />
-              <Text style={[s.printerModeTxt, printerMode === 'standard' && s.printerModeTxtActive]}>PRINTER BESAR</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={s.printerModeHint}>
-            {printerMode === 'thermal'
-              ? '🔵 Cetak hitam-putih via Bluetooth (struk, label, resi)'
-              : '🟢 Cetak warna via WiFi/USB (Epson, Canon, HP, dll)'}
-          </Text>
-        </View>
-
-        {/* ═══ STANDARD PRINT SETTINGS ═══ */}
-        {printerMode === 'standard' && (
-          <StandardPrintSettingsPanel
-            settings={stdSettings}
-            onChange={setStdSettings}
-          />
         )}
 
         {/* ═══ PREVIEW AREA ═══ */}

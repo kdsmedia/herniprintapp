@@ -28,6 +28,11 @@ import {
 import AdBanner from '../components/AdBanner';
 import PrintProgress from '../components/PrintProgress';
 import PdfCapture, { PdfCaptureRef } from '../components/PdfCapture';
+import StandardPrintSettingsPanel from '../components/StandardPrintSettings';
+import {
+  PrinterMode, StandardPrintSettings, DEFAULT_PRINT_SETTINGS,
+  printImageStandard, printPdfStandard, printTextStandard,
+} from '../utils/standardPrint';
 
 type TabId = 'img' | 'pdf' | 'resi' | 'code';
 type ResiMode = 'resi' | 'label';
@@ -61,6 +66,10 @@ export default function MainScreen() {
   const [codeType, setCodeType] = useState<CodeType>('qr');
   const [printing, setPrinting] = useState(false);
   const [connModal, setConnModal] = useState(false);
+
+  // Printer mode
+  const [printerMode, setPrinterMode] = useState<PrinterMode>('thermal');
+  const [stdSettings, setStdSettings] = useState<StandardPrintSettings>(DEFAULT_PRINT_SETTINGS);
 
   // Print progress state
   const [printProgress, setPrintProgress] = useState(0);
@@ -177,8 +186,59 @@ export default function MainScreen() {
     }, success ? 1500 : 2500);
   };
 
+  // ─── STANDARD PRINT (Color/Large Printer) ───────────────
+  const handleStandardPrint = async () => {
+    try {
+      startProgress('Menyiapkan dokumen...');
+      setPrintProgress(20);
+
+      if (tab === 'img') {
+        if (!imageUri) return Alert.alert('Pilih Gambar');
+        setPrintStatus('Mencetak gambar berwarna...');
+        setPrintProgress(50);
+        await printImageStandard(imageUri, stdSettings);
+      }
+      else if (tab === 'pdf') {
+        if (!pdfUri) return Alert.alert('Pilih PDF');
+        setPrintStatus('Mencetak dokumen PDF...');
+        setPrintProgress(50);
+        await printPdfStandard(pdfUri, stdSettings);
+      }
+      else if (tab === 'resi') {
+        setPrintStatus('Mencetak resi/label...');
+        setPrintProgress(50);
+        await printTextStandard(previewText, stdSettings, storeName);
+      }
+      else if (tab === 'code') {
+        if (!codeInput.trim()) return Alert.alert('Input Kosong');
+        setPrintStatus('Mencetak kode...');
+        setPrintProgress(50);
+        // For QR/Barcode, print the preview text with standard printer
+        await printTextStandard(codeInput, stdSettings, 'QR/Barcode');
+      }
+      finishProgress(true);
+    } catch (e: any) {
+      if (!e.message?.includes('cancel')) {
+        finishProgress(false, e.message);
+      } else {
+        setShowProgress(false);
+        setPrinting(false);
+      }
+    }
+  };
+
   // ─── PRINT ─────────────────────────────────────────────
   const handlePrint = async () => {
+    // Standard printer mode — no BLE needed
+    if (printerMode === 'standard') {
+      setPrinting(true);
+      setShowProgress(true);
+      setPrintStage('prepare');
+      await handleStandardPrint();
+      return;
+    }
+
+    // Thermal mode — needs BLE connection
     if (!isConnected) return setConnModal(true);
 
     try {
@@ -452,6 +512,39 @@ export default function MainScreen() {
           </View>
         )}
 
+        {/* ═══ PRINTER MODE TOGGLE ═══ */}
+        <View style={s.printerModeCard}>
+          <View style={s.modeRow}>
+            <TouchableOpacity
+              style={[s.printerModeBtn, printerMode === 'thermal' && s.printerModeBtnActive]}
+              onPress={() => setPrinterMode('thermal')}
+            >
+              <Ionicons name="bluetooth" size={14} color={printerMode === 'thermal' ? '#fff' : COLORS.textMuted} />
+              <Text style={[s.printerModeTxt, printerMode === 'thermal' && s.printerModeTxtActive]}>THERMAL</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.printerModeBtn, printerMode === 'standard' && s.printerModeBtnActiveGreen]}
+              onPress={() => setPrinterMode('standard')}
+            >
+              <Ionicons name="print" size={14} color={printerMode === 'standard' ? '#fff' : COLORS.textMuted} />
+              <Text style={[s.printerModeTxt, printerMode === 'standard' && s.printerModeTxtActive]}>PRINTER BESAR</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={s.printerModeHint}>
+            {printerMode === 'thermal'
+              ? '🔵 Cetak hitam-putih via Bluetooth (struk, label, resi)'
+              : '🟢 Cetak warna via WiFi/USB (Epson, Canon, HP, dll)'}
+          </Text>
+        </View>
+
+        {/* ═══ STANDARD PRINT SETTINGS ═══ */}
+        {printerMode === 'standard' && (
+          <StandardPrintSettingsPanel
+            settings={stdSettings}
+            onChange={setStdSettings}
+          />
+        )}
+
         {/* ═══ PREVIEW AREA ═══ */}
         <View style={s.previewArea}>
           <View style={[s.paper, paperWidth === 80 && s.paper80]}>
@@ -497,8 +590,8 @@ export default function MainScreen() {
             <View style={s.paperEdge} />
           </View>
 
-          {/* Paper & Contrast Controls */}
-          <View style={s.ctrlRow}>
+          {/* Paper & Contrast Controls (thermal only) */}
+          {printerMode === 'thermal' && <View style={s.ctrlRow}>
             <View style={s.ctrlCard}>
               <Text style={s.ctrlLabel}>KERTAS</Text>
               <View style={s.ctrlBtns}>
@@ -521,7 +614,7 @@ export default function MainScreen() {
                 thumbTintColor={COLORS.primaryLight}
               />
             </View>
-          </View>
+          </View>}
         </View>
       </ScrollView>
 
@@ -531,11 +624,13 @@ export default function MainScreen() {
         onPress={handlePrint} disabled={printing} activeOpacity={0.8}
       >
         <LinearGradient
-          colors={['#4f46e5', '#6366f1', '#ec4899']}
+          colors={printerMode === 'standard'
+            ? ['#059669', '#10b981', '#34d399']
+            : ['#4f46e5', '#6366f1', '#ec4899']}
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
           style={s.fabGradient}
         >
-          <Ionicons name={printing ? 'sync' : 'flash'} size={30} color="#fff" />
+          <Ionicons name={printing ? 'sync' : printerMode === 'standard' ? 'color-palette' : 'flash'} size={30} color="#fff" />
         </LinearGradient>
       </TouchableOpacity>
 
@@ -674,6 +769,15 @@ const s = StyleSheet.create({
   labelItem: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 14, padding: 10, gap: 8 },
   labelItemHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   totalBox: { backgroundColor: 'rgba(79,70,229,0.2)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(79,70,229,0.3)', padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+
+  // Printer mode toggle
+  printerModeCard: { backgroundColor: COLORS.bgCard, borderRadius: 20, borderWidth: 1, borderColor: COLORS.bgCardBorder, padding: 12, gap: 8 },
+  printerModeBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12 },
+  printerModeBtnActive: { backgroundColor: COLORS.primary, elevation: 4 },
+  printerModeBtnActiveGreen: { backgroundColor: '#059669', elevation: 4 },
+  printerModeTxt: { fontSize: 10, fontWeight: '800', color: COLORS.textMuted },
+  printerModeTxtActive: { color: '#fff' },
+  printerModeHint: { fontSize: 9, color: COLORS.textSecondary, textAlign: 'center' },
 
   // Preview
   previewArea: { backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 28, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },

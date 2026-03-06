@@ -86,6 +86,8 @@ export default function MainScreen() {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [pdfUri, setPdfUri] = useState<string | null>(null);
   const [pdfName, setPdfName] = useState('');
+  const [pdfImageUri, setPdfImageUri] = useState<string | null>(null);
+  const [pdfConverting, setPdfConverting] = useState(false);
 
   // Resi
   const [nama, setNama] = useState('');
@@ -140,10 +142,45 @@ export default function MainScreen() {
     if (!r.canceled && r.assets[0]) {
       const a = r.assets[0];
       const isPdf = a.mimeType?.includes('pdf') || a.name?.endsWith('.pdf');
-      if (isPdf) { setPdfUri(a.uri); setPdfName(a.name || 'dokumen.pdf'); }
-      else { setImageUri(a.uri); setTab('img'); }
+      if (isPdf) {
+        setPdfUri(a.uri);
+        setPdfName(a.name || 'dokumen.pdf');
+        setPdfImageUri(null); // Reset previous conversion
+        // Auto-convert will trigger via useEffect below
+      } else {
+        setImageUri(a.uri);
+        setTab('img');
+      }
     }
   };
+
+  // Auto-convert PDF to image when pdfUri changes
+  React.useEffect(() => {
+    if (!pdfUri || !pdfCaptureRef.current) return;
+    let cancelled = false;
+
+    const convertPdf = async () => {
+      setPdfConverting(true);
+      setPdfImageUri(null);
+      try {
+        const uri = await pdfCaptureRef.current!.capture(pdfUri, 1);
+        if (!cancelled) {
+          setPdfImageUri(uri);
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          console.warn('PDF auto-convert failed:', e.message);
+          // Not critical — user can still print, just no preview
+        }
+      } finally {
+        if (!cancelled) setPdfConverting(false);
+      }
+    };
+
+    // Small delay to ensure PdfCapture is mounted
+    const timer = setTimeout(convertPdf, 300);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [pdfUri]);
 
   // ─── BLE Scan ───────────────────────────────────────────
   const startBLEScan = async () => {
@@ -212,7 +249,13 @@ export default function MainScreen() {
         if (!pdfUri) return Alert.alert('Pilih PDF');
         setPrintStatus('Mencetak dokumen PDF...');
         setPrintProgress(50);
-        await printPdfStandard(pdfUri, stdSettings);
+        if (pdfImageUri) {
+          // Print the converted image (full color)
+          await printImageStandard(pdfImageUri, stdSettings);
+        } else {
+          // Fallback: print PDF directly via system
+          await printPdfStandard(pdfUri, stdSettings);
+        }
       }
       else if (tab === 'resi') {
         setPrintStatus('Mencetak resi/label...');
@@ -280,27 +323,27 @@ export default function MainScreen() {
           Alert.alert('Pilih File', 'Unggah PDF terlebih dahulu.');
           return;
         }
-        startProgress('Mengkonversi PDF ke gambar...');
+        startProgress('Menyiapkan PDF...');
         setPrintProgress(10);
 
-        // Step 1: Capture PDF page as image
-        if (!pdfCaptureRef.current) {
-          finishProgress(false, 'PDF converter tidak tersedia');
-          return;
+        // Use pre-converted image if available, otherwise convert now
+        let capturedUri = pdfImageUri;
+        if (!capturedUri) {
+          if (!pdfCaptureRef.current) {
+            finishProgress(false, 'PDF converter tidak tersedia');
+            return;
+          }
+          setPrintStatus('Mengkonversi PDF ke gambar...');
+          setPrintProgress(20);
+          capturedUri = await pdfCaptureRef.current.capture(pdfUri, 1);
         }
-
-        setPrintStatus('Merender halaman PDF...');
-        setPrintProgress(20);
-
-        const capturedUri = await pdfCaptureRef.current.capture(pdfUri, 1);
         setPrintProgress(40);
 
-        // Step 2: Process captured image for thermal printing
+        // Process image for thermal printing
         setPrintStatus('Memproses gambar untuk printer...');
         const { pixels, width, height } = await processImageForPrint(capturedUri, dots);
         setPrintProgress(60);
 
-        // Step 3: Convert to ESC/POS and send
         setPrintStatus('Mengkonversi ke ESC/POS...');
         const escData = pixelsToEscPos(pixels, width, height, contrast);
         setPrintProgress(70);
@@ -570,9 +613,22 @@ export default function MainScreen() {
             )}
             {/* PDF preview */}
             {tab === 'pdf' && pdfUri && (
-              <View style={{ alignItems: 'center', paddingVertical: 20, gap: 6 }}>
-                <Ionicons name="document-text" size={40} color="#ef4444" />
-                <Text style={{ fontSize: 10, fontWeight: '600', color: '#333' }}>{pdfName}</Text>
+              <View style={{ alignItems: 'center', gap: 6 }}>
+                {pdfConverting && (
+                  <View style={{ alignItems: 'center', paddingVertical: 20, gap: 8 }}>
+                    <ActivityIndicator size="small" color="#ef4444" />
+                    <Text style={{ fontSize: 9, color: '#999' }}>Mengkonversi PDF...</Text>
+                  </View>
+                )}
+                {pdfImageUri ? (
+                  <Image source={{ uri: pdfImageUri }} style={{ width: '100%', height: 250 }} resizeMode="contain" />
+                ) : !pdfConverting ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 20, gap: 6 }}>
+                    <Ionicons name="document-text" size={40} color="#ef4444" />
+                  </View>
+                ) : null}
+                <Text style={{ fontSize: 9, fontWeight: '600', color: '#666', textAlign: 'center' }}>{pdfName}</Text>
+                {pdfImageUri && <Text style={{ fontSize: 8, color: '#10b981' }}>✅ Siap cetak</Text>}
               </View>
             )}
             {/* Resi/Label preview */}

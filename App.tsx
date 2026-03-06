@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { StatusBar, LogBox } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -14,10 +14,10 @@ import ImageScreen from './src/screens/ImageScreen';
 import PdfScreen from './src/screens/PdfScreen';
 import ResiLabelScreen from './src/screens/ResiLabelScreen';
 import QRBarcodeScreen from './src/screens/QRBarcodeScreen';
+import StandardPrintScreen from './src/screens/StandardPrintScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 
 LogBox.ignoreLogs(['new NativeEventEmitter']);
-
 SplashScreen.preventAutoHideAsync();
 
 const Tab = createBottomTabNavigator();
@@ -58,26 +58,23 @@ export default function App() {
               tabBarInactiveTintColor: COLORS.textMuted,
               tabBarStyle: {
                 backgroundColor: 'rgba(15, 23, 42, 0.98)',
-                borderTopColor: 'rgba(255,255,255,0.15)',
+                borderTopColor: 'rgba(255,255,255,0.1)',
                 borderTopWidth: 1,
                 height: 60,
                 paddingBottom: 6,
                 paddingTop: 6,
               },
-              tabBarLabelStyle: {
-                fontSize: 9,
-                fontWeight: '700',
-                textTransform: 'uppercase',
-                letterSpacing: 1,
-              },
+              tabBarLabelStyle: { fontSize: 9, fontWeight: '700' },
               tabBarIcon: ({ color, size }) => {
-                let iconName: keyof typeof Ionicons.glyphMap = 'image';
-                if (route.name === 'Gambar') iconName = 'image';
-                else if (route.name === 'PDF') iconName = 'document-text';
-                else if (route.name === 'Resi/Label') iconName = 'receipt';
-                else if (route.name === 'QR/Bar') iconName = 'qr-code';
-                else if (route.name === 'Setelan') iconName = 'settings';
-                return <Ionicons name={iconName} size={size - 4} color={color} />;
+                const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
+                  'Gambar': 'image',
+                  'PDF': 'document-text',
+                  'Resi/Label': 'receipt',
+                  'QR/Bar': 'qr-code',
+                  'Cetak': 'print',
+                  'Setelan': 'settings',
+                };
+                return <Ionicons name={icons[route.name] || 'ellipse'} size={size - 2} color={color} />;
               },
             })}
           >
@@ -85,6 +82,7 @@ export default function App() {
             <Tab.Screen name="PDF" component={PdfScreen} />
             <Tab.Screen name="Resi/Label" component={ResiLabelScreen} />
             <Tab.Screen name="QR/Bar" component={QRBarcodeScreen} />
+            <Tab.Screen name="Cetak" component={StandardPrintScreen} />
             <Tab.Screen name="Setelan" component={SettingsScreen} />
           </Tab.Navigator>
         </NavigationContainer>

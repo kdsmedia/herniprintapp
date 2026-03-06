@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView,
-  StyleSheet, Linking, Image, Alert,
+  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Linking, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,8 +12,8 @@ import { useApp } from '../contexts/AppContext';
 import { COLORS } from '../constants/theme';
 
 export default function SettingsScreen() {
-  const { storeName, setStoreName, storeContact, setStoreContact } = useApp();
-  const [connModal, setConnModal] = useState(false);
+  const { storeName, setStoreName, storeContact, setStoreContact, paperWidth, setPaperWidth } = useApp();
+  const [connModal, setConnModal] = React.useState(false);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -24,83 +23,79 @@ export default function SettingsScreen() {
         {/* Store Settings */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>🏪 Pengaturan Toko</Text>
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Nama Toko</Text>
-            <TextInput
-              style={styles.input}
-              value={storeName}
-              onChangeText={setStoreName}
-              placeholder="Nama toko Anda"
-              placeholderTextColor={COLORS.textMuted}
-            />
-          </View>
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Kontak Toko</Text>
-            <TextInput
-              style={styles.input}
-              value={storeContact}
-              onChangeText={setStoreContact}
-              placeholder="No. HP / WhatsApp"
-              placeholderTextColor={COLORS.textMuted}
-              keyboardType="phone-pad"
-            />
+          <Text style={styles.label}>Nama Toko</Text>
+          <TextInput
+            style={styles.input} value={storeName} onChangeText={setStoreName}
+            placeholder="Nama toko Anda" placeholderTextColor="#64748b"
+          />
+          <Text style={styles.label}>Kontak Toko</Text>
+          <TextInput
+            style={styles.input} value={storeContact} onChangeText={setStoreContact}
+            placeholder="No. HP / Email" placeholderTextColor="#64748b"
+          />
+        </View>
+
+        {/* Paper Settings */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>📄 Ukuran Kertas Default</Text>
+          <View style={styles.paperRow}>
+            <TouchableOpacity
+              style={[styles.paperBtn, paperWidth === 58 && styles.paperBtnActive]}
+              onPress={() => setPaperWidth(58)}
+            >
+              <Text style={[styles.paperBtnText, paperWidth === 58 && styles.paperBtnTextActive]}>58mm</Text>
+              <Text style={styles.paperBtnSub}>384 dots</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.paperBtn, paperWidth === 80 && styles.paperBtnActive]}
+              onPress={() => setPaperWidth(80)}
+            >
+              <Text style={[styles.paperBtnText, paperWidth === 80 && styles.paperBtnTextActive]}>80mm</Text>
+              <Text style={styles.paperBtnSub}>576 dots</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
         {/* About */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>ℹ️ Tentang Aplikasi</Text>
-          <View style={styles.aboutBox}>
-            <Image source={require('../../assets/logo.png')} style={styles.aboutLogo} resizeMode="contain" />
-            <Text style={styles.aboutName}>HERNIPRINT</Text>
-            <Text style={styles.aboutVersion}>Versi 2.0.0</Text>
-            <Text style={styles.aboutDesc}>
-              Solusi cetak thermal & printer warna untuk UMKM Indonesia. Mendukung Bluetooth, USB/OTG, cetak gambar, PDF, resi/label, QR code, dan barcode.
-            </Text>
-          </View>
+          <Text style={styles.aboutText}>
+            HERNIPRINT v2.0{'\n'}
+            Solusi Cetak Thermal untuk UMKM Indonesia{'\n\n'}
+            Aplikasi ini mendukung pencetakan gambar, PDF, resi pengiriman,
+            label barang, QR Code, dan Barcode melalui printer thermal via Bluetooth dan USB.
+          </Text>
         </View>
 
         {/* Disclaimer */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>⚠️ Disclaimer</Text>
-          <Text style={styles.disclaimer}>
-            Aplikasi ini disediakan "sebagaimana adanya" tanpa jaminan apapun. Penggunaan sepenuhnya menjadi tanggung jawab pengguna. Kami tidak bertanggung jawab atas kerusakan printer atau kesalahan cetak.
+          <Text style={styles.aboutText}>
+            Aplikasi ini disediakan "sebagaimana adanya" tanpa jaminan apapun.
+            Pengembang tidak bertanggung jawab atas kerusakan atau kerugian yang
+            timbul dari penggunaan aplikasi ini. Pastikan printer Anda kompatibel
+            dengan ESC/POS sebelum menggunakan.
           </Text>
         </View>
 
-        {/* Contact / Telegram */}
+        {/* Contact */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>📱 Hubungi Kami</Text>
+          <Text style={styles.cardTitle}>📞 Hubungi Kami</Text>
           <TouchableOpacity
-            style={styles.telegramBtn}
+            style={styles.contactBtn}
             onPress={() => Linking.openURL('https://t.me/altomediaindonesia')}
-            activeOpacity={0.8}
           >
-            <Ionicons name="paper-plane" size={20} color={COLORS.white} />
+            <Ionicons name="paper-plane" size={20} color="#0088cc" />
             <View>
-              <Text style={styles.telegramTitle}>Telegram</Text>
-              <Text style={styles.telegramSub}>@altomediaindonesia</Text>
+              <Text style={styles.contactTitle}>Telegram</Text>
+              <Text style={styles.contactSub}>@altomediaindonesia</Text>
             </View>
-            <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.5)" style={{ marginLeft: 'auto' }} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.waBtn}
-            onPress={() => Linking.openURL('https://wa.me/6285813899649')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="logo-whatsapp" size={20} color={COLORS.white} />
-            <View>
-              <Text style={styles.telegramTitle}>WhatsApp</Text>
-              <Text style={styles.telegramSub}>+62 858-1389-9649</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.5)" style={{ marginLeft: 'auto' }} />
+            <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
           </TouchableOpacity>
         </View>
 
         <Text style={styles.footer}>© 2026 Alto Media Indonesia</Text>
       </ScrollView>
-
       <AdBanner />
       <ConnectionModal visible={connModal} onClose={() => setConnModal(false)} />
     </SafeAreaView>
@@ -110,45 +105,44 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bgDark },
   content: { flex: 1 },
-  contentInner: { paddingBottom: 30 },
+  contentInner: { paddingBottom: 30, gap: 12 },
 
   card: {
-    marginHorizontal: 16, marginTop: 16,
+    marginHorizontal: 16,
     backgroundColor: COLORS.bgCard, borderRadius: 24,
     borderWidth: 1, borderColor: COLORS.bgCardBorder, padding: 18,
   },
-  cardTitle: { fontSize: 14, fontWeight: '700', color: COLORS.white, marginBottom: 14 },
+  cardTitle: { fontSize: 14, fontWeight: '800', color: COLORS.white, marginBottom: 14 },
 
-  field: { marginBottom: 12 },
-  fieldLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 },
+  label: { fontSize: 10, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 6, marginTop: 8 },
   input: {
-    backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(0,0,0,0.3)', borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)', borderRadius: 12,
     paddingHorizontal: 14, paddingVertical: 10,
-    color: COLORS.white, fontSize: 13,
+    color: COLORS.white, fontSize: 12,
   },
 
-  aboutBox: { alignItems: 'center', paddingVertical: 10, gap: 6 },
-  aboutLogo: { width: 60, height: 60, borderRadius: 16 },
-  aboutName: { fontSize: 18, fontWeight: '900', color: COLORS.white },
-  aboutVersion: { fontSize: 11, color: COLORS.textMuted },
-  aboutDesc: { fontSize: 11, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 18, marginTop: 6 },
+  paperRow: { flexDirection: 'row', gap: 10 },
+  paperBtn: {
+    flex: 1, alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    paddingVertical: 16,
+  },
+  paperBtnActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  paperBtnText: { fontSize: 16, fontWeight: '800', color: COLORS.textMuted },
+  paperBtnTextActive: { color: COLORS.white },
+  paperBtnSub: { fontSize: 10, color: COLORS.textMuted },
 
-  disclaimer: { fontSize: 11, color: COLORS.textMuted, lineHeight: 18 },
+  aboutText: { fontSize: 11, color: COLORS.textSecondary, lineHeight: 18 },
 
-  telegramBtn: {
+  contactBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#0088cc', borderRadius: 16, padding: 14, marginBottom: 10,
+    backgroundColor: 'rgba(0,136,204,0.1)', borderRadius: 16,
+    padding: 14, borderWidth: 1, borderColor: 'rgba(0,136,204,0.2)',
   },
-  waBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#25D366', borderRadius: 16, padding: 14,
-  },
-  telegramTitle: { fontSize: 12, fontWeight: '700', color: COLORS.white },
-  telegramSub: { fontSize: 10, color: 'rgba(255,255,255,0.7)' },
+  contactTitle: { fontSize: 12, fontWeight: '700', color: COLORS.white, flex: 1 },
+  contactSub: { fontSize: 10, color: '#0088cc' },
 
-  footer: {
-    textAlign: 'center', fontSize: 10, color: COLORS.textMuted,
-    marginTop: 24, marginBottom: 16,
-  },
+  footer: { textAlign: 'center', fontSize: 10, color: COLORS.textMuted, marginTop: 8 },
 });

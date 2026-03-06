@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, FlatList,
-  StyleSheet, Alert,
+  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,15 +24,12 @@ function formatRupiah(n: number): string {
 export default function ResiLabelScreen() {
   const {
     sendToPrinter, paperWidth, isConnected, storeName,
-    labelItems, addLabelItem, updateLabelItem, removeLabelItem,
-    clearLabelItems, getLabelTotal,
+    labelItems, addLabelItem, updateLabelItem, removeLabelItem, clearLabelItems, getLabelTotal,
   } = useApp();
   const [mode, setMode] = useState<Mode>('resi');
   const [nama, setNama] = useState('');
   const [noResi, setNoResi] = useState('');
   const [alamat, setAlamat] = useState('');
-  const [align, setAlign] = useState<'left' | 'center'>('left');
-  const [size, setSize] = useState<'small' | 'normal' | 'large'>('normal');
   const [printing, setPrinting] = useState(false);
   const [connModal, setConnModal] = useState(false);
 
@@ -41,12 +37,12 @@ export default function ResiLabelScreen() {
 
   // Build preview text
   const previewText = useMemo(() => {
-    const sep = '='.repeat(paperWidth === 58 ? 32 : 48);
-    const dash = '-'.repeat(paperWidth === 58 ? 32 : 48);
-
     if (mode === 'resi') {
+      const sep = '='.repeat(paperWidth === 58 ? 32 : 48);
       return `RESI PENGIRIMAN\n${sep}\n\nKEPADA: ${nama || 'Nama Penerima'}\nRESI: ${noResi || 'RESI-SAMPLE-001'}\n\nALAMAT:\n${alamat || 'Alamat pengiriman lengkap...'}\n\n${sep}\nTerima kasih sudah belanja!`;
     } else {
+      const sep = '='.repeat(paperWidth === 58 ? 32 : 48);
+      const dash = '-'.repeat(paperWidth === 58 ? 32 : 48);
       let text = `LABEL BARANG\n${sep}\n`;
       if (labelItems.length === 0) {
         text += '\n(Belum ada item)\n';
@@ -54,11 +50,11 @@ export default function ResiLabelScreen() {
         labelItems.forEach((item, i) => {
           const name = item.name || `Item ${i + 1}`;
           const subtotal = item.price * item.qty;
-          text += `\n${name}\n  ${item.qty}x ${formatRupiah(item.price)} = ${formatRupiah(subtotal)}\n`;
+          text += `\n${name}\n  ${item.qty} x ${formatRupiah(item.price)} = ${formatRupiah(subtotal)}`;
         });
-        text += `${dash}\nTOTAL: ${formatRupiah(labelTotal)}\n${labelItems.length} jenis barang\n`;
+        text += `\n${dash}\nTOTAL: ${formatRupiah(labelTotal)}\n${labelItems.length} jenis barang`;
       }
-      text += `${sep}\n${storeName}`;
+      text += `\n${sep}\n${storeName}`;
       return text;
     }
   }, [mode, nama, noResi, alamat, paperWidth, labelItems, labelTotal, storeName]);
@@ -69,54 +65,63 @@ export default function ResiLabelScreen() {
     setPrinting(true);
     try {
       const lines: ReceiptLine[] = [];
-      const maxChars = paperWidth === 58 ? 32 : 48;
 
       if (mode === 'resi') {
-        lines.push({ text: storeName, align: 'center', bold: true, size: 'large' });
-        lines.push(buildSeparator(paperWidth, '='));
-        lines.push({ text: 'RESI PENGIRIMAN', align: 'center', bold: true });
-        lines.push(buildSeparator(paperWidth, '='));
-        lines.push({ text: '' });
-        lines.push(buildTwoColumn('KEPADA:', nama || '-', paperWidth));
-        lines.push(buildTwoColumn('RESI:', noResi || '-', paperWidth));
-        lines.push({ text: '' });
-        lines.push({ text: 'ALAMAT:' });
-        // Word-wrap alamat
+        lines.push(
+          { text: storeName, align: 'center', bold: true, size: 'large' },
+          buildSeparator(paperWidth, '='),
+          { text: 'RESI PENGIRIMAN', align: 'center', bold: true },
+          buildSeparator(paperWidth, '='),
+          { text: '' },
+          { text: `KEPADA: ${nama}`, bold: true },
+          { text: `RESI  : ${noResi}` },
+          { text: '' },
+          { text: 'ALAMAT:' },
+        );
+        const maxChars = paperWidth === 58 ? 32 : 48;
         const addr = alamat || '-';
         for (let i = 0; i < addr.length; i += maxChars) {
           lines.push({ text: addr.substring(i, i + maxChars) });
         }
-        lines.push({ text: '' });
-        lines.push(buildSeparator(paperWidth, '='));
-        lines.push({ text: 'Terima kasih sudah belanja!', align: 'center' });
+        lines.push(
+          { text: '' },
+          buildSeparator(paperWidth, '='),
+          { text: 'Terima kasih sudah belanja!', align: 'center' },
+        );
       } else {
-        lines.push({ text: storeName, align: 'center', bold: true, size: 'large' });
-        lines.push(buildSeparator(paperWidth, '='));
-        lines.push({ text: 'LABEL BARANG', align: 'center', bold: true });
-        lines.push(buildSeparator(paperWidth, '='));
+        lines.push(
+          { text: storeName, align: 'center', bold: true, size: 'large' },
+          buildSeparator(paperWidth, '='),
+          { text: 'LABEL BARANG', align: 'center', bold: true },
+          buildSeparator(paperWidth, '='),
+        );
 
         if (labelItems.length === 0) {
-          Alert.alert('Tambah Item', 'Tambahkan minimal 1 item terlebih dahulu.');
-          setPrinting(false);
-          return;
+          lines.push({ text: '(Belum ada item)', align: 'center' });
+        } else {
+          labelItems.forEach((item, i) => {
+            const name = item.name || `Item ${i + 1}`;
+            const subtotal = item.price * item.qty;
+            lines.push(
+              { text: name, bold: true },
+              buildTwoColumn(`  ${item.qty} x ${formatRupiah(item.price)}`, formatRupiah(subtotal), paperWidth),
+            );
+          });
+          lines.push(
+            buildSeparator(paperWidth, '-'),
+            buildTwoColumn('TOTAL', formatRupiah(labelTotal), paperWidth),
+          );
+          lines.push({ text: `${labelItems.length} jenis barang`, align: 'center' });
         }
 
-        labelItems.forEach((item) => {
-          const name = item.name || 'Item';
-          const subtotal = item.price * item.qty;
-          lines.push(buildTwoColumn(name, formatRupiah(subtotal), paperWidth));
-          lines.push({ text: `  ${item.qty}x @ ${formatRupiah(item.price)}` });
-        });
-
-        lines.push(buildSeparator(paperWidth, '-'));
-        lines.push(buildTwoColumn('TOTAL', formatRupiah(labelTotal), paperWidth));
-        lines.push({ text: `${labelItems.length} jenis barang`, align: 'center' });
-        lines.push(buildSeparator(paperWidth, '='));
-        lines.push({ text: storeName, align: 'center' });
+        lines.push(
+          buildSeparator(paperWidth, '='),
+          { text: 'Terima kasih!', align: 'center' },
+        );
       }
 
-      const escpos = buildReceiptCommands(lines);
-      await sendToPrinter(escpos);
+      const data = buildReceiptCommands(lines);
+      await sendToPrinter(data);
       Alert.alert('Berhasil ✅', `${mode === 'resi' ? 'Resi' : 'Label'} berhasil dicetak!`);
     } catch (e: any) {
       Alert.alert('Gagal Cetak', e.message);
@@ -129,10 +134,10 @@ export default function ResiLabelScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header onConnectionPress={() => setConnModal(true)} />
       <ScrollView style={styles.content} contentContainerStyle={styles.contentInner}>
-        {/* Form */}
+        {/* Form Card */}
         <View style={styles.formCard}>
           {/* Mode Switcher */}
-          <View style={styles.modeSwitch}>
+          <View style={styles.modeRow}>
             <TouchableOpacity
               style={[styles.modeBtn, mode === 'resi' && styles.modeBtnActive]}
               onPress={() => setMode('resi')}
@@ -150,11 +155,16 @@ export default function ResiLabelScreen() {
           {mode === 'resi' ? (
             <View style={styles.fields}>
               <View style={styles.row}>
-                <TextInput style={[styles.input, styles.flex1]} placeholder="Nama Penerima" placeholderTextColor="#555" value={nama} onChangeText={setNama} />
-                <TextInput style={[styles.input, styles.flex1]} placeholder="No. Resi" placeholderTextColor="#555" value={noResi} onChangeText={setNoResi} />
+                <TextInput style={[styles.input, styles.flex1]} placeholder="Nama Penerima" placeholderTextColor="#64748b" value={nama} onChangeText={setNama} />
+                <TextInput style={[styles.input, styles.flex1]} placeholder="No. Resi" placeholderTextColor="#64748b" value={noResi} onChangeText={setNoResi} />
               </View>
-              <TextInput style={[styles.input, styles.textarea]} placeholder="Alamat Pengiriman Lengkap..." placeholderTextColor="#555"
-                value={alamat} onChangeText={setAlamat} multiline numberOfLines={3} />
+              <TextInput
+                style={[styles.input, styles.textarea]}
+                placeholder="Alamat Pengiriman Lengkap..."
+                placeholderTextColor="#64748b"
+                multiline numberOfLines={3}
+                value={alamat} onChangeText={setAlamat}
+              />
             </View>
           ) : (
             <View style={styles.fields}>
@@ -163,7 +173,7 @@ export default function ResiLabelScreen() {
                 <View style={styles.labelActions}>
                   {labelItems.length > 0 && (
                     <TouchableOpacity onPress={clearLabelItems}>
-                      <Text style={styles.clearBtn}>Hapus Semua</Text>
+                      <Text style={styles.clearText}>Hapus Semua</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
@@ -177,29 +187,39 @@ export default function ResiLabelScreen() {
                 </View>
               </View>
 
-              {labelItems.map((item, index) => (
+              {labelItems.map((item, idx) => (
                 <View key={item.id} style={styles.labelItem}>
                   <View style={styles.labelItemHeader}>
-                    <Text style={styles.labelItemNum}>#{index + 1}</Text>
+                    <Text style={styles.labelItemNum}>#{idx + 1}</Text>
                     <TouchableOpacity onPress={() => removeLabelItem(item.id)}>
                       <Ionicons name="close-circle" size={18} color={COLORS.error} />
                     </TouchableOpacity>
                   </View>
-                  <TextInput style={styles.input} placeholder="Nama Barang" placeholderTextColor="#555"
-                    value={item.name} onChangeText={(t) => updateLabelItem(item.id, 'name', t)} />
+                  <TextInput
+                    style={styles.input} placeholder="Nama Barang"
+                    placeholderTextColor="#64748b"
+                    value={item.name}
+                    onChangeText={(v) => updateLabelItem(item.id, 'name', v)}
+                  />
                   <View style={styles.row}>
-                    <TextInput style={[styles.input, styles.flex1]} placeholder="Harga Satuan" placeholderTextColor="#555"
-                      keyboardType="numeric" value={item.price ? String(item.price) : ''}
-                      onChangeText={(t) => updateLabelItem(item.id, 'price', parseInt(t) || 0)} />
-                    <TextInput style={[styles.input, { width: 80 }]} placeholder="Qty" placeholderTextColor="#555"
-                      keyboardType="numeric" value={item.qty ? String(item.qty) : ''}
-                      onChangeText={(t) => updateLabelItem(item.id, 'qty', parseInt(t) || 1)} />
+                    <TextInput
+                      style={[styles.input, styles.flex1]} placeholder="Harga Satuan"
+                      placeholderTextColor="#64748b" keyboardType="numeric"
+                      value={item.price ? String(item.price) : ''}
+                      onChangeText={(v) => updateLabelItem(item.id, 'price', parseInt(v) || 0)}
+                    />
+                    <TextInput
+                      style={[styles.input, { width: 80 }]} placeholder="Qty"
+                      placeholderTextColor="#64748b" keyboardType="numeric"
+                      value={item.qty ? String(item.qty) : ''}
+                      onChangeText={(v) => updateLabelItem(item.id, 'qty', parseInt(v) || 1)}
+                    />
                   </View>
                 </View>
               ))}
 
               {labelItems.length > 0 && (
-                <View style={styles.totalCard}>
+                <View style={styles.totalBox}>
                   <Text style={styles.totalLabel}>ESTIMASI TOTAL</Text>
                   <Text style={styles.totalValue}>{formatRupiah(labelTotal)}</Text>
                 </View>
@@ -211,9 +231,7 @@ export default function ResiLabelScreen() {
         {/* Preview */}
         <View style={styles.previewArea}>
           <View style={[styles.paper, paperWidth === 80 && styles.paper80]}>
-            <Text style={[styles.previewText, { textAlign: align, fontSize: size === 'small' ? 9 : size === 'large' ? 14 : 11 }]}>
-              {previewText}
-            </Text>
+            <Text style={styles.previewText}>{previewText}</Text>
             <View style={styles.paperEdge} />
           </View>
         </View>
@@ -221,9 +239,7 @@ export default function ResiLabelScreen() {
 
       <TouchableOpacity
         style={[styles.printFab, printing && styles.printFabDisabled]}
-        onPress={handlePrint}
-        disabled={printing}
-        activeOpacity={0.8}
+        onPress={handlePrint} disabled={printing} activeOpacity={0.8}
       >
         <Ionicons name={printing ? 'sync' : 'flash'} size={28} color={COLORS.white} />
       </TouchableOpacity>
@@ -242,69 +258,73 @@ const styles = StyleSheet.create({
   formCard: {
     marginHorizontal: 16, marginTop: 8,
     backgroundColor: COLORS.bgCard, borderRadius: 24,
-    borderWidth: 1, borderColor: COLORS.bgCardBorder,
-    padding: 16,
+    borderWidth: 1, borderColor: COLORS.bgCardBorder, padding: 16,
   },
-  modeSwitch: {
+  modeRow: {
     flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.4)',
-    borderRadius: 12, padding: 4, marginBottom: 14,
+    borderRadius: 12, padding: 4, marginBottom: 12, gap: 4,
   },
   modeBtn: { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center' },
   modeBtnActive: { backgroundColor: COLORS.primary, elevation: 4 },
-  modeBtnText: { fontSize: 10, fontWeight: '800', color: COLORS.textMuted },
+  modeBtnText: { fontSize: 10, fontWeight: '700', color: COLORS.textMuted },
   modeBtnTextActive: { color: COLORS.white },
 
   fields: { gap: 10 },
   row: { flexDirection: 'row', gap: 10 },
   flex1: { flex: 1 },
   input: {
-    backgroundColor: 'rgba(0,0,0,0.3)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
+    backgroundColor: 'rgba(0,0,0,0.3)', borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)', borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 10,
     color: COLORS.white, fontSize: 12,
   },
   textarea: { height: 70, textAlignVertical: 'top' },
 
   labelHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  labelCount: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary },
+  labelCount: { fontSize: 11, fontWeight: '600', color: COLORS.textSecondary },
   labelActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  clearBtn: { fontSize: 10, fontWeight: '700', color: COLORS.error },
+  clearText: { fontSize: 10, color: COLORS.error, fontWeight: '600' },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: COLORS.primary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6,
+    backgroundColor: COLORS.primary, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 6,
   },
   addBtnText: { fontSize: 10, fontWeight: '700', color: COLORS.white },
 
   labelItem: {
-    backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 14, padding: 12, gap: 8,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 14,
+    padding: 12, gap: 8,
   },
   labelItemHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  labelItemNum: { fontSize: 10, fontWeight: '800', color: COLORS.primaryLight },
+  labelItemNum: { fontSize: 10, fontWeight: '700', color: COLORS.primaryLight },
 
-  totalCard: {
-    backgroundColor: 'rgba(79,70,229,0.2)', borderRadius: 14,
+  totalBox: {
+    backgroundColor: 'rgba(79,70,229,0.2)', borderRadius: 12,
     borderWidth: 1, borderColor: 'rgba(79,70,229,0.3)',
     padding: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  totalLabel: { fontSize: 10, fontWeight: '800', color: COLORS.primaryLight },
+  totalLabel: { fontSize: 10, fontWeight: '700', color: COLORS.primaryLight },
   totalValue: { fontSize: 14, fontWeight: '900', color: COLORS.white },
 
   previewArea: {
     alignItems: 'center', marginTop: 20,
     backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 28,
-    marginHorizontal: 16, padding: 24, minHeight: 200,
+    marginHorizontal: 16, padding: 24,
   },
   paper: {
     width: 220, backgroundColor: COLORS.white,
-    borderRadius: 2, padding: 12, minHeight: 100,
+    borderRadius: 2, padding: 12, minHeight: 150,
     elevation: 10,
   },
   paper80: { width: 300 },
-  previewText: { fontFamily: 'monospace', fontSize: 11, color: COLORS.black, lineHeight: 16 },
+  previewText: {
+    fontFamily: 'monospace', fontSize: 8, color: '#000',
+    lineHeight: 12,
+  },
   paperEdge: {
     position: 'absolute', bottom: -6, left: 0, right: 0, height: 6,
     backgroundColor: COLORS.white,

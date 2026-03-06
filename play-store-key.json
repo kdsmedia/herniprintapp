@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "hale-trilogy-465208-s4",
+  "private_key_id": "8539cf93813b6a9c0962513a00d3092a556a2c08",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDKNXOUwJORcHqj\nhFDP8wbSpN+1rRq6l6Pnfygar7m3fFViSi5ouoxtexpTijxLlAm8tHp2vKcZMlM/\nHJn3c5bWKm9lE46vL6oKyE7ahTgsnKvX2Wvtj85RCN5P9MflOuZlqYuC9E2k+MIH\nea4Lelc/12EQAs40HXQJG8D6vvyPg0Moe+BrX6j6DT+Yu+bJfklanCU13wfBXQu7\nYgyyRBaitq3wLEU7+p3CaiYDNEKziO/5lJlAYdjJ5KmdkxnyOcLcvckf74Wq91RD\nhXU9yb5FnMBGQDvGOfdfphoRMFFZ7Zym1jjic2J9tn59VElyvHUyHeFzhBkjA6nr\nFLEMhpqzAgMBAAECggEARoUtsgsXa/mWS8CxjlRrZLsraejdEYYhG3M1QVlXo64w\n+P52AQBOSUBNhiUHsjQG0VEABLj2bcsnTTNkXvBpAnf6MX4InQA6hVgmZ/9d//ED\n3VtuUIN+qLQ3FBuCO2e3Qm1Gwn0BNy+qO4EsOcSI+TLcHwFbeMFs3mBXhRtmaYX2\n2qrYsdHBD/FXKeyzqst2bKNgvJDgbVOuQ6lrL4Crdr2qO20omXvplwXfZTKGlcFJ\n0C36wMam+lIXx8+Oj3cG9DHj+YCUpwmQfpJTbbpUgCuvZu+lEKOlcFTIHQnNjbHv\nn91YPdhGv97TiqInub2i9ubmVMJdWKoBnX5w04fpwQKBgQDu8VSx3lubnAgkto7/\n83uVfRD7Arq1SE4HyeDqkOx2C0nuRJcvQqjp1l5nGtLqd0xTMcTpNRd0ndMOkRQW\n5zm+sIA6MT+g8pQL2d+8OYjuM7kkINpPPwbDl84v8y/qtRC330TrynyQPkF9Q4oj\n+KSg5vu2V6eSlegMioLFTbBWZwKBgQDYpM9U8FwZ5JQ2n9MlHeISqnLpU6Z2J9S7\ndfGCn7slCJUmQVF6nWyMu2WMEU7YAhW6mjR1ubwaJd/DFKhWecc5in6y6lXFobzk\ngI30g21SPLfMUu2KUYTafXJjPfgJ6LL9Ib5e+pFtWgHTJxaNds6oyNPik+xznFkO\n0nToaHMx1QKBgBrwkKkBNfjkbbKd9p969zsSf8CdPSnFPi74nugzcMWaXjqD9zu3\n202KAtjDGHag/rT+joHwn3VhefNRfh9a8JLEWaC1/sOJthFj/iq9neelY0Fkhtia\ndYvF6NRVKdjfk0P341BmYwbsTfvuinulxAH0KPsVBOqtBh2r3DScnr4PAoGAJQzK\niHQyzBrTXiQnMAnUR+zuigjMRxi4wPaCvxwiHUtCdrBlBts1XTwPOc0b9sUkgi0t\nG5UQHkir4+j8gQ2CjMyqrl51HL90Vn/FxzNS1uWbaU4lYapfVh5uGZrXeJpbQf8r\nV4LyrAjglwPwT3EqFqOB2RYDMiJi+K31YGm8iaECgYARmtb4BIam4e/7Gv1b811X\nTtj1ab8T3p6BQy8H9E5FEeDa5Vs8sBvG7SklpZyEJhxJr8mtnl1tQhRfIX7xCwoq\njYebc5FFCxusPxlw87m8gM+Kk9XJDN0ov7F1Z0Xy6w6M7geRenUDdOshueOmbAg9\n7vJ9KIU/gh5bn9kvf7gnAg==\n-----END PRIVATE KEY-----\n",
+  "client_email": "herniprint-play-store@hale-trilogy-465208-s4.iam.gserviceaccount.com",
+  "client_id": "105961766463942175685",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/herniprint-play-store%40hale-trilogy-465208-s4.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

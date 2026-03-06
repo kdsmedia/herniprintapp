@@ -2,11 +2,17 @@
  * ESC/POS Command Builder for Thermal Printers
  * Supports: raster image printing, text commands, QR codes, barcodes
  *
- * IMPORTANT for images:
- * - Height is NEVER limited — the full image is printed
- * - Line spacing is set to 0 before raster to prevent vertical gaps
- * - ESC @ (init) is called only ONCE, not per band
- * - Aspect ratio is 1:1 — circles print as circles
+ * IMAGE PRINTING — uses ESC * 33 (24-dot double density bit image):
+ * - Horizontal resolution: printer's native DPI (203 or 180)
+ * - Vertical resolution: EXPLICITLY controlled via ESC 3 24
+ * - Result: perfect 1:1 aspect ratio on ALL thermal printers
+ * - Height: UNLIMITED — full image is printed
+ *
+ * Why NOT GS v 0?
+ * GS v 0 lets the printer control vertical stepping internally.
+ * Many cheap thermal printers have vertical step < horizontal dot pitch,
+ * causing images to print "gepeng" (squished vertically).
+ * ESC * 33 + ESC 3 24 gives us explicit control over BOTH axes.
  */
 
 import { PaperWidth, PAPER } from '../constants/theme';
@@ -29,9 +35,7 @@ export const CMD = {
   DOUBLE_BOTH: [ESC, 0x21, 0x30],
   NORMAL_SIZE: [ESC, 0x21, 0x00],
   FEED_3: [LF, LF, LF],
-  // Line spacing commands
   LINE_SPACING_DEFAULT: [ESC, 0x32],               // Reset to default line spacing
-  LINE_SPACING_ZERO: [ESC, 0x33, 0x00],            // Set line spacing to 0 (crucial for images!)
 };
 
 export type Alignment = 'left' | 'center' | 'right';
@@ -67,7 +71,7 @@ function encodeText(text: string): number[] {
 // ─── Build Receipt from Text Lines ────────────────────────
 export function buildReceiptCommands(lines: ReceiptLine[]): Uint8Array {
   const data: number[] = [...CMD.INIT];
-  data.push(GS, 0x4c, 0x00, 0x00); // Left margin = 0
+  data.push(GS, 0x4c, 0x00, 0x00);
 
   for (const line of lines) {
     if (line.align === 'center') data.push(...CMD.ALIGN_CENTER);
@@ -111,33 +115,43 @@ export function buildSeparator(paperWidth: PaperWidth, char: '=' | '-' = '='): R
   return { text: char.repeat(maxChars), align: 'center' };
 }
 
-// ─── Image to ESC/POS Raster (GS v 0) ────────────────────
+// ─── Image to ESC/POS using ESC * 33 (24-dot double density) ────
 //
-// IMPORTANT DESIGN DECISIONS:
-// 1. Height is UNLIMITED — the entire image is printed, no cropping
-// 2. ESC 3 0 sets line spacing to 0 BEFORE raster → no vertical gaps between bands
-// 3. ESC @ (INIT) is called only ONCE at the start, NOT per band
-// 4. After image, line spacing is restored to default for subsequent text
-// 5. Floyd-Steinberg dithering for best quality B/W conversion
+// How it works:
+// 1. Image is split into horizontal strips of 24 rows each
+// 2. Each strip is sent as a ESC * 33 command (24-dot bit image)
+// 3. Line spacing is set to exactly 24 dots (ESC 3 24) = strip height
+// 4. After each strip, a LF advances paper by exactly 24 dots
+// 5. Result: seamless image with perfect 1:1 aspect ratio
+//
+// Data format for ESC * 33:
+// - Data is sent COLUMN by COLUMN (not row by row like GS v 0)
+// - Each column = 3 bytes (24 bits, MSB = top row, LSB = bottom row)
+// - Total bytes per strip = columns × 3
+//
+// Why this works perfectly:
+// - ESC 3 24 sets line feed distance to 24 × (printer's vertical motion unit)
+// - The vertical motion unit = 1/native_DPI (1/203" or 1/180")
+// - ESC * 33 prints at printer's native horizontal DPI
+// - So vertical step = horizontal dot pitch → perfect 1:1 → circles are circles!
 //
 export function pixelsToEscPos(
   pixels: Uint8Array,   // RGBA pixel data
   width: number,        // Image width in pixels
   height: number,       // Image height in pixels (NO LIMIT)
   contrast: number = 1.0,
-  paperDots?: number,   // Paper width in dots (384 or 576) for alignment
+  paperDots?: number,   // Paper width in dots (384 or 576)
   align: 'left' | 'center' | 'right' = 'center',
 ): Uint8Array {
-  // Determine output width
-  const outputWidth = paperDots || width;
-  const alignedWidth = Math.ceil(outputWidth / 8) * 8;
-  const widthBytes = alignedWidth / 8;
+  // Image width for the printer (use paper width or image width)
+  const imgWidth = Math.min(width, paperDots || width);
 
-  // Calculate left padding for alignment
-  let padLeft = 0;
-  if (paperDots && width < alignedWidth) {
-    if (align === 'center') padLeft = Math.floor((alignedWidth - width) / 2);
-    else if (align === 'right') padLeft = alignedWidth - width;
+  // Calculate left margin for alignment
+  const totalPaperDots = paperDots || width;
+  let leftMarginDots = 0;
+  if (imgWidth < totalPaperDots) {
+    if (align === 'center') leftMarginDots = Math.floor((totalPaperDots - imgWidth) / 2);
+    else if (align === 'right') leftMarginDots = totalPaperDots - imgWidth;
   }
 
   // Convert to grayscale — ITU-R BT.601, white background for transparency
@@ -171,53 +185,56 @@ export function pixelsToEscPos(
     }
   }
 
-  // ═══ Build ESC/POS raster data ═══
+  // ═══ Build ESC/POS commands ═══
   const data: number[] = [];
 
-  // 1. Initialize printer ONCE
+  // 1. Initialize printer
   data.push(...CMD.INIT);
 
-  // 2. Set alignment
-  data.push(...CMD.ALIGN_CENTER);
+  // 2. Set left margin for alignment (GS L nL nH)
+  data.push(GS, 0x4c, leftMarginDots & 0xff, (leftMarginDots >> 8) & 0xff);
 
-  // 3. Set left margin to 0
-  data.push(GS, 0x4c, 0x00, 0x00);
+  // 3. Left-align the image data (margin handles centering)
+  data.push(...CMD.ALIGN_LEFT);
 
-  // 4. ★ CRUCIAL: Set line spacing to 0 before image
-  //    This prevents vertical gaps between raster bands
-  //    Without this, some printers add default line spacing (~3.75mm)
-  //    between each GS v 0 band, causing the image to stretch vertically
-  //    or appear with horizontal white lines
-  data.push(...CMD.LINE_SPACING_ZERO);
+  // 4. ★ Set line spacing to exactly 24 dots
+  //    This is the KEY to correct aspect ratio:
+  //    24 dots of vertical advance = 24 dots of image height per strip
+  //    Matches the 24-dot strip height perfectly → no gaps, no compression
+  data.push(ESC, 0x33, 24);
 
-  // 5. Send image in bands (max 255 rows per GS v 0 command)
-  //    Height is NOT limited — all rows are sent
-  const maxBandHeight = 255;
+  // 5. Send image in 24-row strips using ESC * 33
+  const stripHeight = 24;
+  const nL = imgWidth & 0xff;
+  const nH = (imgWidth >> 8) & 0xff;
 
-  for (let bandStart = 0; bandStart < height; bandStart += maxBandHeight) {
-    const bandHeight = Math.min(maxBandHeight, height - bandStart);
+  for (let stripStart = 0; stripStart < height; stripStart += stripHeight) {
+    // ESC * m nL nH d1...dk
+    // m = 33 (24-dot double density)
+    data.push(ESC, 0x2a, 33, nL, nH);
 
-    // GS v 0 — raster bit image (mode 0 = normal, no scaling)
-    data.push(GS, 0x76, 0x30, 0x00);
-    data.push(widthBytes & 0xff, (widthBytes >> 8) & 0xff);
-    data.push(bandHeight & 0xff, (bandHeight >> 8) & 0xff);
-
-    // Pack pixel rows into bytes
-    for (let y = bandStart; y < bandStart + bandHeight; y++) {
-      for (let xByte = 0; xByte < widthBytes; xByte++) {
+    // Send column-by-column data for this 24-row strip
+    for (let x = 0; x < imgWidth; x++) {
+      // 3 bytes per column (24 bits = 24 rows)
+      for (let byteIdx = 0; byteIdx < 3; byteIdx++) {
         let byte = 0;
         for (let bit = 0; bit < 8; bit++) {
-          const pixelX = xByte * 8 + bit - padLeft;
-          if (pixelX >= 0 && pixelX < width && gray[y * width + pixelX] < 128) {
+          const y = stripStart + byteIdx * 8 + bit;
+          // Check bounds and whether pixel is black
+          if (y < height && x < width && gray[y * width + x] < 128) {
             byte |= (0x80 >> bit);
           }
+          // Out-of-bounds pixels stay 0 (white)
         }
         data.push(byte);
       }
     }
+
+    // Line feed — advances paper by exactly 24 dots (as set by ESC 3 24)
+    data.push(LF);
   }
 
-  // 6. Restore default line spacing (for any text printed after image)
+  // 6. Restore default line spacing for subsequent text
   data.push(...CMD.LINE_SPACING_DEFAULT);
 
   // 7. Feed and cut

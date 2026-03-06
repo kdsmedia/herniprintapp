@@ -2,7 +2,7 @@
  * MainScreen — Single-page layout matching the original HTML PWA exactly.
  * 4 top tabs, form area, paper preview, floating print button, connection modal.
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image, ScrollView,
   StyleSheet, Alert, Modal, ActivityIndicator, Linking,
@@ -28,7 +28,7 @@ import {
 import AdBanner from '../components/AdBanner';
 import { preloadInterstitial, showInterstitial } from '../utils/ads';
 import PrintProgress from '../components/PrintProgress';
-import { convertPdfToImage } from '../components/PdfConverter';
+import PdfConverter, { PdfConverterRef } from '../components/PdfConverter';
 import StandardPrintSettingsPanel from '../components/StandardPrintSettings';
 import {
   PrinterMode, StandardPrintSettings, DEFAULT_PRINT_SETTINGS,
@@ -60,7 +60,6 @@ export default function MainScreen() {
   } = useApp();
 
   // Refs
-  // PDF converter uses react-native-pdf-to-image (no ref needed)
 
   // UI State
   const [tab, setTab] = useState<TabId>('img');
@@ -87,12 +86,18 @@ export default function MainScreen() {
   const [printAlign, setPrintAlign] = useState<'left' | 'center' | 'right'>('center');
   const [printSharpness, setPrintSharpness] = useState(5); // 1-10
 
+  // PDF Converter ref
+  const pdfConverterRef = useRef<PdfConverterRef>(null);
+
   // Image/PDF
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [pdfUri, setPdfUri] = useState<string | null>(null);
   const [pdfName, setPdfName] = useState('');
   const [pdfImageUri, setPdfImageUri] = useState<string | null>(null);
   const [pdfConverting, setPdfConverting] = useState(false);
+  const [pdfTotalPages, setPdfTotalPages] = useState(0);
+  const [pdfCurrentPage, setPdfCurrentPage] = useState(1);
+  const [pdfPageCache, setPdfPageCache] = useState<Record<number, string>>({});
 
   // Resi
   const [nama, setNama] = useState('');
@@ -148,10 +153,14 @@ export default function MainScreen() {
       const a = r.assets[0];
       const isPdf = a.mimeType?.includes('pdf') || a.name?.endsWith('.pdf');
       if (isPdf) {
+        // Reset all PDF state
+        setPdfImageUri(null);
+        setPdfTotalPages(0);
+        setPdfCurrentPage(1);
+        setPdfPageCache({});
         setPdfUri(a.uri);
         setPdfName(a.name || 'dokumen.pdf');
-        setPdfImageUri(null);
-        setPdfConverting(true); // Show loading immediately
+        setPdfConverting(true);
       } else {
         // If user picks an image from PDF picker, switch to image tab
         setImageUri(a.uri);
@@ -165,32 +174,97 @@ export default function MainScreen() {
     setPdfName('');
     setPdfImageUri(null);
     setPdfConverting(false);
+    setPdfTotalPages(0);
+    setPdfCurrentPage(1);
+    setPdfPageCache({});
   };
 
-  // Auto-convert PDF to image immediately after upload
+  // Convert a specific PDF page using WebView + PDF.js
+  const convertPdfPage = async (pageNum: number) => {
+    // Check cache first
+    if (pdfPageCache[pageNum]) {
+      setPdfImageUri(pdfPageCache[pageNum]);
+      setPdfCurrentPage(pageNum);
+      return;
+    }
+
+    setPdfConverting(true);
+    setPdfImageUri(null);
+    try {
+      const converter = pdfConverterRef.current;
+      if (!converter) throw new Error('PDF converter belum siap. Tunggu sebentar...');
+
+      const uri = await converter.convertPage(pageNum);
+      setPdfImageUri(uri);
+      setPdfCurrentPage(pageNum);
+      // Cache the result
+      setPdfPageCache(prev => ({ ...prev, [pageNum]: uri }));
+    } catch (e: any) {
+      console.warn('PDF page convert failed:', e.message);
+      Alert.alert('Konversi Gagal', e.message || 'Halaman tidak bisa dikonversi.');
+    } finally {
+      setPdfConverting(false);
+    }
+  };
+
+  // Auto-load PDF and convert first page when pdfUri changes
   React.useEffect(() => {
     if (!pdfUri) return;
     let cancelled = false;
 
-    const doConvert = async () => {
+    const doLoad = async () => {
       setPdfConverting(true);
       setPdfImageUri(null);
+      setPdfTotalPages(0);
+
       try {
-        const result = await convertPdfToImage(pdfUri, 1, 100);
-        if (!cancelled) setPdfImageUri(result.uri);
+        const converter = pdfConverterRef.current;
+        if (!converter) {
+          // WebView might not be ready yet, retry after a short delay
+          await new Promise(r => setTimeout(r, 1500));
+          if (cancelled) return;
+          if (!pdfConverterRef.current) {
+            throw new Error('PDF converter belum siap. Coba lagi.');
+          }
+        }
+
+        const ref = pdfConverterRef.current!;
+
+        // Step 1: Load PDF and get page count
+        const totalPages = await ref.loadPdf(pdfUri);
+        if (cancelled) return;
+        setPdfTotalPages(totalPages);
+
+        // Step 2: Convert first page
+        const uri = await ref.convertPage(1);
+        if (cancelled) return;
+        setPdfImageUri(uri);
+        setPdfCurrentPage(1);
+        setPdfPageCache({ 1: uri });
       } catch (e: any) {
         if (!cancelled) {
-          console.warn('PDF convert failed:', e.message);
-          Alert.alert('Konversi Gagal', e.message || 'PDF tidak bisa dikonversi. Coba file lain.');
+          console.warn('PDF load failed:', e.message);
+          Alert.alert(
+            'Konversi Gagal',
+            e.message || 'PDF tidak bisa dikonversi. Pastikan koneksi internet aktif dan coba lagi.'
+          );
         }
       } finally {
         if (!cancelled) setPdfConverting(false);
       }
     };
 
-    doConvert();
+    doLoad();
     return () => { cancelled = true; };
   }, [pdfUri]);
+
+  // Navigate PDF pages
+  const pdfPrevPage = () => {
+    if (pdfCurrentPage > 1) convertPdfPage(pdfCurrentPage - 1);
+  };
+  const pdfNextPage = () => {
+    if (pdfCurrentPage < pdfTotalPages) convertPdfPage(pdfCurrentPage + 1);
+  };
 
   // ─── BLE Scan ───────────────────────────────────────────
   const startBLEScan = async () => {
@@ -355,13 +429,16 @@ export default function MainScreen() {
         startProgress('Menyiapkan PDF...');
         setPrintProgress(10);
 
-        // Use pre-converted image if available, otherwise convert now
+        // Use pre-converted image of current page
         let capturedUri = pdfImageUri;
         if (!capturedUri) {
-          setPrintStatus('Mengkonversi PDF ke gambar...');
+          setPrintStatus('Mengkonversi halaman ke gambar...');
           setPrintProgress(20);
-          const result = await convertPdfToImage(pdfUri, 1, 100);
-          capturedUri = result.uri;
+          if (pdfConverterRef.current) {
+            capturedUri = await pdfConverterRef.current.convertPage(pdfCurrentPage);
+          } else {
+            throw new Error('PDF converter belum siap');
+          }
         }
         setPrintProgress(40);
 
@@ -567,21 +644,27 @@ export default function MainScreen() {
             {/* PDF conversion status */}
             {pdfUri && (
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
                   {pdfConverting ? (
                     <>
                       <ActivityIndicator size="small" color="#f59e0b" />
-                      <Text style={{ fontSize: 10, color: '#f59e0b', fontWeight: '600' }}>Mengkonversi PDF ke gambar...</Text>
+                      <Text style={{ fontSize: 10, color: '#f59e0b', fontWeight: '600' }}>
+                        {pdfTotalPages > 0
+                          ? `Mengkonversi halaman ${pdfCurrentPage} dari ${pdfTotalPages}...`
+                          : 'Memuat PDF...'}
+                      </Text>
                     </>
                   ) : pdfImageUri ? (
                     <>
                       <Ionicons name="checkmark-circle" size={14} color="#10b981" />
-                      <Text style={{ fontSize: 10, color: '#10b981', fontWeight: '600' }}>✅ Berhasil dikonversi — siap cetak</Text>
+                      <Text style={{ fontSize: 10, color: '#10b981', fontWeight: '600' }}>
+                        ✅ Halaman {pdfCurrentPage}{pdfTotalPages > 1 ? `/${pdfTotalPages}` : ''} siap cetak
+                      </Text>
                     </>
                   ) : (
                     <>
                       <Ionicons name="alert-circle" size={14} color="#ef4444" />
-                      <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '600' }}>Konversi gagal</Text>
+                      <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '600' }}>Konversi gagal — periksa internet</Text>
                     </>
                   )}
                 </View>
@@ -667,36 +750,69 @@ export default function MainScreen() {
             {tab === 'img' && imageUri && (
               <Image source={{ uri: imageUri }} style={{ width: '100%', height: 180 }} resizeMode="contain" />
             )}
-            {/* PDF preview — shows converted image */}
+            {/* PDF preview — shows converted image with page navigation */}
             {tab === 'pdf' && pdfUri && (
               <View style={{ alignItems: 'center', gap: 8 }}>
                 {pdfConverting ? (
                   <View style={{ alignItems: 'center', paddingVertical: 40, gap: 10 }}>
                     <ActivityIndicator size="large" color="#f59e0b" />
-                    <Text style={{ fontSize: 11, color: '#f59e0b', fontWeight: '600' }}>Mengkonversi PDF...</Text>
-                    <Text style={{ fontSize: 9, color: '#888' }}>Harap tunggu sebentar</Text>
+                    <Text style={{ fontSize: 11, color: '#f59e0b', fontWeight: '600' }}>
+                      {pdfTotalPages > 0 ? `Mengkonversi halaman ${pdfCurrentPage}...` : 'Memuat PDF...'}
+                    </Text>
+                    <Text style={{ fontSize: 9, color: '#888' }}>Memerlukan koneksi internet</Text>
                   </View>
                 ) : pdfImageUri ? (
                   <View style={{ width: '100%', alignItems: 'center' }}>
                     <Image source={{ uri: pdfImageUri }} style={{ width: '100%', height: 300 }} resizeMode="contain" />
+
+                    {/* Page navigation */}
+                    {pdfTotalPages > 1 && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 20, paddingHorizontal: 6, paddingVertical: 4 }}>
+                        <TouchableOpacity
+                          onPress={pdfPrevPage}
+                          disabled={pdfCurrentPage <= 1}
+                          style={{ opacity: pdfCurrentPage <= 1 ? 0.3 : 1, padding: 6 }}
+                        >
+                          <Ionicons name="chevron-back" size={18} color="#fff" />
+                        </TouchableOpacity>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#fff', minWidth: 60, textAlign: 'center' }}>
+                          {pdfCurrentPage} / {pdfTotalPages}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={pdfNextPage}
+                          disabled={pdfCurrentPage >= pdfTotalPages}
+                          style={{ opacity: pdfCurrentPage >= pdfTotalPages ? 0.3 : 1, padding: 6 }}
+                        >
+                          <Ionicons name="chevron-forward" size={18} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 }}>
                       <Ionicons name="checkmark-circle" size={12} color="#10b981" />
-                      <Text style={{ fontSize: 9, color: '#10b981', fontWeight: '700' }}>SIAP CETAK</Text>
+                      <Text style={{ fontSize: 9, color: '#10b981', fontWeight: '700' }}>
+                        SIAP CETAK{pdfTotalPages > 1 ? ` • HALAMAN ${pdfCurrentPage}` : ''}
+                      </Text>
                     </View>
                   </View>
                 ) : (
                   <View style={{ alignItems: 'center', paddingVertical: 30, gap: 8 }}>
                     <Ionicons name="alert-circle" size={36} color="#ef4444" />
                     <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '600' }}>Konversi gagal</Text>
+                    <Text style={{ fontSize: 9, color: '#888', textAlign: 'center', paddingHorizontal: 10 }}>
+                      Pastikan koneksi internet aktif
+                    </Text>
                     <TouchableOpacity
                       style={{ backgroundColor: 'rgba(239,68,68,0.15)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }}
-                      onPress={() => { const uri = pdfUri; setPdfUri(null); setTimeout(() => setPdfUri(uri), 100); }}
+                      onPress={() => { const uri = pdfUri; const name = pdfName; clearPdf(); setTimeout(() => { setPdfUri(uri); setPdfName(name); setPdfConverting(true); }, 300); }}
                     >
                       <Text style={{ fontSize: 10, color: '#ef4444', fontWeight: '700' }}>Coba Lagi</Text>
                     </TouchableOpacity>
                   </View>
                 )}
-                <Text style={{ fontSize: 9, fontWeight: '600', color: '#888', textAlign: 'center' }}>{pdfName}</Text>
+                <Text style={{ fontSize: 9, fontWeight: '600', color: '#888', textAlign: 'center' }}>
+                  {pdfName}{pdfTotalPages > 0 ? ` • ${pdfTotalPages} halaman` : ''}
+                </Text>
               </View>
             )}
             {/* Resi/Label preview */}
@@ -932,8 +1048,8 @@ export default function MainScreen() {
 
       <AdBanner />
 
-      {/* ═══ HIDDEN PDF CAPTURE ═══ */}
-      {/* PDF conversion handled by react-native-pdf-to-image (no component needed) */}
+      {/* ═══ HIDDEN PDF CONVERTER (WebView + PDF.js) ═══ */}
+      <PdfConverter ref={pdfConverterRef} defaultScale={2.0} />
 
       {/* ═══ PRE-PRINT SETTINGS POPUP ═══ */}
       <Modal visible={showPrintSettings} transparent animationType="slide" onRequestClose={() => setShowPrintSettings(false)}>

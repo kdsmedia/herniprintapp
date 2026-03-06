@@ -2,7 +2,7 @@
  * MainScreen — Single-page layout matching the original HTML PWA exactly.
  * 4 top tabs, form area, paper preview, floating print button, connection modal.
  */
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image, ScrollView,
   StyleSheet, Alert, Modal, ActivityIndicator, Linking,
@@ -28,7 +28,7 @@ import {
 import AdBanner from '../components/AdBanner';
 import { preloadInterstitial, showInterstitial } from '../utils/ads';
 import PrintProgress from '../components/PrintProgress';
-import PdfConverter, { PdfConverterRef } from '../components/PdfConverter';
+import { convertPdfToImage } from '../components/PdfConverter';
 import StandardPrintSettingsPanel from '../components/StandardPrintSettings';
 import {
   PrinterMode, StandardPrintSettings, DEFAULT_PRINT_SETTINGS,
@@ -60,7 +60,7 @@ export default function MainScreen() {
   } = useApp();
 
   // Refs
-  const pdfConverterRef = useRef<PdfConverterRef>(null);
+  // PDF converter uses react-native-pdf-to-image (no ref needed)
 
   // UI State
   const [tab, setTab] = useState<TabId>('img');
@@ -167,34 +167,17 @@ export default function MainScreen() {
     setPdfConverting(false);
   };
 
-  // Auto-convert PDF to image immediately after upload (using PDF.js WebView)
+  // Auto-convert PDF to image immediately after upload
   React.useEffect(() => {
     if (!pdfUri) return;
     let cancelled = false;
 
-    const convertPdf = async () => {
+    const doConvert = async () => {
       setPdfConverting(true);
       setPdfImageUri(null);
-
-      // Wait for PdfConverter WebView to be ready
-      let retries = 0;
-      while (!pdfConverterRef.current && retries < 15) {
-        await new Promise(r => setTimeout(r, 200));
-        retries++;
-      }
-
-      if (!pdfConverterRef.current) {
-        if (!cancelled) {
-          setPdfConverting(false);
-          Alert.alert('Error', 'PDF converter belum siap. Coba lagi.');
-        }
-        return;
-      }
-
       try {
-        // Scale: 2.0 for good quality preview, thermal will re-process anyway
-        const uri = await pdfConverterRef.current.convert(pdfUri, 1, 2.0);
-        if (!cancelled) setPdfImageUri(uri);
+        const result = await convertPdfToImage(pdfUri, 1, 100);
+        if (!cancelled) setPdfImageUri(result.uri);
       } catch (e: any) {
         if (!cancelled) {
           console.warn('PDF convert failed:', e.message);
@@ -205,9 +188,8 @@ export default function MainScreen() {
       }
     };
 
-    // Small delay for WebView mount
-    const timer = setTimeout(convertPdf, 500);
-    return () => { cancelled = true; clearTimeout(timer); };
+    doConvert();
+    return () => { cancelled = true; };
   }, [pdfUri]);
 
   // ─── BLE Scan ───────────────────────────────────────────
@@ -376,13 +358,10 @@ export default function MainScreen() {
         // Use pre-converted image if available, otherwise convert now
         let capturedUri = pdfImageUri;
         if (!capturedUri) {
-          if (!pdfConverterRef.current) {
-            finishProgress(false, 'PDF converter tidak tersedia');
-            return;
-          }
           setPrintStatus('Mengkonversi PDF ke gambar...');
           setPrintProgress(20);
-          capturedUri = await pdfConverterRef.current.convert(pdfUri, 1, 2.0);
+          const result = await convertPdfToImage(pdfUri, 1, 100);
+          capturedUri = result.uri;
         }
         setPrintProgress(40);
 
@@ -954,7 +933,7 @@ export default function MainScreen() {
       <AdBanner />
 
       {/* ═══ HIDDEN PDF CAPTURE ═══ */}
-      <PdfConverter ref={pdfConverterRef} defaultScale={2.0} />
+      {/* PDF conversion handled by react-native-pdf-to-image (no component needed) */}
 
       {/* ═══ PRE-PRINT SETTINGS POPUP ═══ */}
       <Modal visible={showPrintSettings} transparent animationType="slide" onRequestClose={() => setShowPrintSettings(false)}>

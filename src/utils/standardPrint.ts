@@ -271,8 +271,7 @@ export async function printTextStandard(
       <div class="receipt-header">${storeName}</div>
       <div class="receipt-body">${escaped}</div>
       <div class="receipt-footer">
-        Dicetak: ${dateStr}<br>
-        Powered by HERNIPRINT
+        ${dateStr}
       </div>
     </div>
   </div>`;

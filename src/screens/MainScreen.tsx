@@ -122,7 +122,7 @@ export default function MainScreen() {
     } else {
       let t = `LABEL BARANG\n${sep}\n`;
       if (labelItems.length === 0) {
-        t += '\nITEM: Nama Produk\nQTY : 1\nHARGA: Rp 0\n' + dash + '\nTOTAL: Rp 0\n' + sep + '\nHERNIPRINT';
+        t += '\nITEM: Nama Produk\nQTY : 1\nHARGA: Rp 0\n' + dash + '\nTOTAL: Rp 0\n' + sep;
       } else {
         labelItems.forEach((item, i) => {
           const sub = item.price * item.qty;

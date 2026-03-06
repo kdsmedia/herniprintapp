@@ -32,7 +32,7 @@ import PdfCapture, { PdfCaptureRef } from '../components/PdfCapture';
 import StandardPrintSettingsPanel from '../components/StandardPrintSettings';
 import {
   PrinterMode, StandardPrintSettings, DEFAULT_PRINT_SETTINGS,
-  printImageStandard, printPdfStandard, printTextStandard,
+  printImageStandard, printPdfStandard, printTextStandard, printCodeHtmlStandard,
 } from '../utils/standardPrint';
 
 type TabId = 'img' | 'pdf' | 'resi' | 'code';
@@ -267,7 +267,6 @@ export default function MainScreen() {
         setPrintStatus('Mencetak kode...');
         setPrintProgress(50);
         // Render QR/Barcode as HTML image for color printing
-        const { printCodeHtmlStandard } = require('../utils/standardPrint');
         await printCodeHtmlStandard(codeInput, codeType, stdSettings);
       }
       finishProgress(true);

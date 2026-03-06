@@ -2,17 +2,12 @@
  * ESC/POS Command Builder for Thermal Printers
  * Supports: raster image printing, text commands, QR codes, barcodes
  *
- * IMAGE PRINTING — uses ESC * 33 (24-dot double density bit image):
- * - Horizontal resolution: printer's native DPI (203 or 180)
- * - Vertical resolution: EXPLICITLY controlled via ESC 3 24
- * - Result: perfect 1:1 aspect ratio on ALL thermal printers
- * - Height: UNLIMITED — full image is printed
- *
- * Why NOT GS v 0?
- * GS v 0 lets the printer control vertical stepping internally.
- * Many cheap thermal printers have vertical step < horizontal dot pitch,
- * causing images to print "gepeng" (squished vertically).
- * ESC * 33 + ESC 3 24 gives us explicit control over BOTH axes.
+ * IMAGE PRINTING — uses GS v 0 (raster bit image):
+ * - Height is UNLIMITED — full image is printed
+ * - Vertical stretching is done BEFORE conversion (in imageProcessor)
+ *   to compensate for printers with non-square dot pitch
+ * - Line spacing set to 0 before image, restored after
+ * - INIT called only once
  */
 
 import { PaperWidth, PAPER } from '../constants/theme';
@@ -35,7 +30,8 @@ export const CMD = {
   DOUBLE_BOTH: [ESC, 0x21, 0x30],
   NORMAL_SIZE: [ESC, 0x21, 0x00],
   FEED_3: [LF, LF, LF],
-  LINE_SPACING_DEFAULT: [ESC, 0x32],               // Reset to default line spacing
+  LINE_SPACING_DEFAULT: [ESC, 0x32],
+  LINE_SPACING_ZERO: [ESC, 0x33, 0x00],
 };
 
 export type Alignment = 'left' | 'center' | 'right';
@@ -79,7 +75,6 @@ export function buildReceiptCommands(lines: ReceiptLine[]): Uint8Array {
     else data.push(...CMD.ALIGN_LEFT);
 
     if (line.bold) data.push(...CMD.BOLD_ON);
-
     if (line.size === 'large') data.push(...CMD.DOUBLE_BOTH);
     else data.push(...CMD.NORMAL_SIZE);
 
@@ -115,46 +110,34 @@ export function buildSeparator(paperWidth: PaperWidth, char: '=' | '-' = '='): R
   return { text: char.repeat(maxChars), align: 'center' };
 }
 
-// ─── Image to ESC/POS using ESC * 33 (24-dot double density) ────
+// ─── Image to ESC/POS Raster (GS v 0) ────────────────────
 //
-// How it works:
-// 1. Image is split into horizontal strips of 24 rows each
-// 2. Each strip is sent as a ESC * 33 command (24-dot bit image)
-// 3. Line spacing is set to exactly 24 dots (ESC 3 24) = strip height
-// 4. After each strip, a LF advances paper by exactly 24 dots
-// 5. Result: seamless image with perfect 1:1 aspect ratio
+// The image should ALREADY be vertically stretched by imageProcessor
+// if the user has set a vertical correction factor > 1.0.
+// This function just converts the pixel data to ESC/POS raster format.
 //
-// Data format for ESC * 33:
-// - Data is sent COLUMN by COLUMN (not row by row like GS v 0)
-// - Each column = 3 bytes (24 bits, MSB = top row, LSB = bottom row)
-// - Total bytes per strip = columns × 3
-//
-// Why this works perfectly:
-// - ESC 3 24 sets line feed distance to 24 × (printer's vertical motion unit)
-// - The vertical motion unit = 1/native_DPI (1/203" or 1/180")
-// - ESC * 33 prints at printer's native horizontal DPI
-// - So vertical step = horizontal dot pitch → perfect 1:1 → circles are circles!
+// Height is UNLIMITED — all pixel rows are sent to the printer.
 //
 export function pixelsToEscPos(
-  pixels: Uint8Array,   // RGBA pixel data
+  pixels: Uint8Array,   // RGBA pixel data (already stretched if needed)
   width: number,        // Image width in pixels
   height: number,       // Image height in pixels (NO LIMIT)
   contrast: number = 1.0,
   paperDots?: number,   // Paper width in dots (384 or 576)
   align: 'left' | 'center' | 'right' = 'center',
 ): Uint8Array {
-  // Image width for the printer (use paper width or image width)
-  const imgWidth = Math.min(width, paperDots || width);
+  const outputWidth = paperDots || width;
+  const alignedWidth = Math.ceil(outputWidth / 8) * 8;
+  const widthBytes = alignedWidth / 8;
 
-  // Calculate left margin for alignment
-  const totalPaperDots = paperDots || width;
-  let leftMarginDots = 0;
-  if (imgWidth < totalPaperDots) {
-    if (align === 'center') leftMarginDots = Math.floor((totalPaperDots - imgWidth) / 2);
-    else if (align === 'right') leftMarginDots = totalPaperDots - imgWidth;
+  // Calculate left padding for alignment
+  let padLeft = 0;
+  if (paperDots && width < alignedWidth) {
+    if (align === 'center') padLeft = Math.floor((alignedWidth - width) / 2);
+    else if (align === 'right') padLeft = alignedWidth - width;
   }
 
-  // Convert to grayscale — ITU-R BT.601, white background for transparency
+  // Convert to grayscale — ITU-R BT.601, white bg for transparency
   const gray = new Float32Array(width * height);
   for (let i = 0; i < width * height; i++) {
     const idx = i * 4;
@@ -185,59 +168,44 @@ export function pixelsToEscPos(
     }
   }
 
-  // ═══ Build ESC/POS commands ═══
+  // ═══ Build ESC/POS raster data ═══
   const data: number[] = [];
 
-  // 1. Initialize printer
+  // Initialize printer ONCE
   data.push(...CMD.INIT);
+  data.push(...CMD.ALIGN_CENTER);
+  data.push(GS, 0x4c, 0x00, 0x00); // Left margin = 0
 
-  // 2. Set left margin for alignment (GS L nL nH)
-  data.push(GS, 0x4c, leftMarginDots & 0xff, (leftMarginDots >> 8) & 0xff);
+  // Set line spacing to 0 before image (prevent gaps between bands)
+  data.push(...CMD.LINE_SPACING_ZERO);
 
-  // 3. Left-align the image data (margin handles centering)
-  data.push(...CMD.ALIGN_LEFT);
+  // Send image in bands (max 255 rows per GS v 0 command)
+  const maxBandHeight = 255;
 
-  // 4. ★ Set line spacing to exactly 24 dots
-  //    This is the KEY to correct aspect ratio:
-  //    24 dots of vertical advance = 24 dots of image height per strip
-  //    Matches the 24-dot strip height perfectly → no gaps, no compression
-  data.push(ESC, 0x33, 24);
+  for (let bandStart = 0; bandStart < height; bandStart += maxBandHeight) {
+    const bandHeight = Math.min(maxBandHeight, height - bandStart);
 
-  // 5. Send image in 24-row strips using ESC * 33
-  const stripHeight = 24;
-  const nL = imgWidth & 0xff;
-  const nH = (imgWidth >> 8) & 0xff;
+    // GS v 0 m xL xH yL yH d1...dk
+    data.push(GS, 0x76, 0x30, 0x00);
+    data.push(widthBytes & 0xff, (widthBytes >> 8) & 0xff);
+    data.push(bandHeight & 0xff, (bandHeight >> 8) & 0xff);
 
-  for (let stripStart = 0; stripStart < height; stripStart += stripHeight) {
-    // ESC * m nL nH d1...dk
-    // m = 33 (24-dot double density)
-    data.push(ESC, 0x2a, 33, nL, nH);
-
-    // Send column-by-column data for this 24-row strip
-    for (let x = 0; x < imgWidth; x++) {
-      // 3 bytes per column (24 bits = 24 rows)
-      for (let byteIdx = 0; byteIdx < 3; byteIdx++) {
+    for (let y = bandStart; y < bandStart + bandHeight; y++) {
+      for (let xByte = 0; xByte < widthBytes; xByte++) {
         let byte = 0;
         for (let bit = 0; bit < 8; bit++) {
-          const y = stripStart + byteIdx * 8 + bit;
-          // Check bounds and whether pixel is black
-          if (y < height && x < width && gray[y * width + x] < 128) {
+          const pixelX = xByte * 8 + bit - padLeft;
+          if (pixelX >= 0 && pixelX < width && gray[y * width + pixelX] < 128) {
             byte |= (0x80 >> bit);
           }
-          // Out-of-bounds pixels stay 0 (white)
         }
         data.push(byte);
       }
     }
-
-    // Line feed — advances paper by exactly 24 dots (as set by ESC 3 24)
-    data.push(LF);
   }
 
-  // 6. Restore default line spacing for subsequent text
+  // Restore default line spacing
   data.push(...CMD.LINE_SPACING_DEFAULT);
-
-  // 7. Feed and cut
   data.push(...CMD.FEED_3);
   data.push(...CMD.CUT);
 
@@ -250,16 +218,11 @@ export function generateEscPosQR(text: string, paperDots: number): Uint8Array {
   const textBytes = encodeText(text);
   const store_len = textBytes.length + 3;
 
-  // Function 165: Select model (Model 2)
   data.push(GS, 0x28, 0x6b, 4, 0, 0x31, 0x41, 0x32, 0x00);
-  // Function 167: Set module size (6 dots)
   data.push(GS, 0x28, 0x6b, 3, 0, 0x31, 0x43, 0x06);
-  // Function 169: Set error correction (Level M = 49)
   data.push(GS, 0x28, 0x6b, 3, 0, 0x31, 0x45, 0x31);
-  // Function 180: Store data
   data.push(GS, 0x28, 0x6b, store_len & 0xff, (store_len >> 8) & 0xff, 0x31, 0x50, 0x30);
   data.push(...textBytes);
-  // Function 181: Print
   data.push(GS, 0x28, 0x6b, 3, 0, 0x31, 0x51, 0x30);
 
   data.push(...CMD.FEED_3);
@@ -271,13 +234,9 @@ export function generateEscPosQR(text: string, paperDots: number): Uint8Array {
 export function generateEscPosBarcode(text: string, paperDots: number): Uint8Array {
   const data: number[] = [...CMD.INIT, ...CMD.ALIGN_CENTER];
 
-  // GS h — Set barcode height (80 dots)
   data.push(GS, 0x68, 0x50);
-  // GS w — Set barcode width (2)
   data.push(GS, 0x77, 0x02);
-  // GS H — Print HRI below barcode
   data.push(GS, 0x48, 0x02);
-  // GS k — Print CODE128
   const barcodeData = encodeText("{B" + text);
   data.push(GS, 0x6b, 0x49, barcodeData.length);
   data.push(...barcodeData);

@@ -85,6 +85,7 @@ export default function MainScreen() {
   const [showPrintSettings, setShowPrintSettings] = useState(false);
   const [printAlign, setPrintAlign] = useState<'left' | 'center' | 'right'>('center');
   const [printSharpness, setPrintSharpness] = useState(5); // 1-10
+  const [verticalStretch, setVerticalStretch] = useState(1.0); // 1.0 = no stretch
 
   // PDF Converter ref
   const pdfConverterRef = useRef<PdfConverterRef>(null);
@@ -415,7 +416,7 @@ export default function MainScreen() {
         startProgress('Memproses gambar...');
         setPrintProgress(10);
 
-        const { pixels, width, height } = await processImageForPrint(imageUri, dots, { landscape: isLandscape, sharpness: printSharpness });
+        const { pixels, width, height } = await processImageForPrint(imageUri, dots, { landscape: isLandscape, sharpness: printSharpness, verticalStretch });
         setPrintProgress(40);
         setPrintStatus('Mengkonversi untuk printer...');
 
@@ -453,7 +454,7 @@ export default function MainScreen() {
 
         // Process image for thermal printing
         setPrintStatus('Memproses gambar untuk printer...');
-        const { pixels, width, height } = await processImageForPrint(capturedUri, dots, { landscape: isLandscape, sharpness: printSharpness });
+        const { pixels, width, height } = await processImageForPrint(capturedUri, dots, { landscape: isLandscape, sharpness: printSharpness, verticalStretch });
         setPrintProgress(60);
 
         setPrintStatus('Mengkonversi ke ESC/POS...');
@@ -1184,6 +1185,37 @@ export default function MainScreen() {
                 </View>
               )}
 
+              {/* Vertical Stretch / Height Correction (thermal + image/pdf only) */}
+              {printerMode === 'thermal' && (tab === 'img' || tab === 'pdf') && (
+                <View style={{ marginBottom: 16 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={s.psLabel}>📏 Koreksi Tinggi</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '900', color: verticalStretch > 1.0 ? '#f59e0b' : COLORS.primaryLight }}>
+                      {verticalStretch === 1.0 ? 'Normal' : `+${Math.round((verticalStretch - 1) * 100)}%`}
+                    </Text>
+                  </View>
+                  <Slider
+                    minimumValue={0.8}
+                    maximumValue={1.5}
+                    step={0.05}
+                    value={verticalStretch}
+                    onValueChange={setVerticalStretch}
+                    minimumTrackTintColor="#f59e0b"
+                    maximumTrackTintColor="rgba(255,255,255,0.15)"
+                    thumbTintColor="#f59e0b"
+                    style={{ marginTop: 8, height: 40 }}
+                  />
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 9, color: COLORS.textMuted }}>Pendek</Text>
+                    <Text style={{ fontSize: 9, color: COLORS.textMuted, fontWeight: '700' }}>1.0 = Normal</Text>
+                    <Text style={{ fontSize: 9, color: COLORS.textMuted }}>Tinggi</Text>
+                  </View>
+                  <Text style={{ fontSize: 9, color: '#f59e0b', marginTop: 4, textAlign: 'center' }}>
+                    💡 Jika gambar tercetak gepeng, naikkan nilai ini (coba 1.20 - 1.30)
+                  </Text>
+                </View>
+              )}
+
               {/* Summary */}
               <View style={{ backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 12, padding: 12, marginBottom: 12 }}>
                 <Text style={{ fontSize: 10, fontWeight: '700', color: COLORS.textMuted, marginBottom: 6 }}>RINGKASAN</Text>
@@ -1191,6 +1223,7 @@ export default function MainScreen() {
                   {printerMode === 'thermal' ? `🖨️ Thermal ${paperWidth}mm` : '🖨️ Printer Besar'} • {stdSettings.orientation === 'portrait' ? '📱 Portrait' : '📱 Landscape'}
                   {printerMode === 'thermal' ? ` • ↔️ ${printAlign === 'center' ? 'Tengah' : printAlign === 'left' ? 'Kiri' : 'Kanan'}` : ''}
                   {' '}• 🔆 {printSharpness}/10{printerMode === 'thermal' ? ` • 🌗 ${Math.round(contrast * 100)}%` : ''}
+                  {printerMode === 'thermal' && verticalStretch !== 1.0 ? ` • 📏 +${Math.round((verticalStretch - 1) * 100)}%` : ''}
                 </Text>
               </View>
             </ScrollView>

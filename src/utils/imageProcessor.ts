@@ -12,20 +12,28 @@ import { Buffer } from 'buffer';
 
 /**
  * Process an image URI for thermal printing
- * 1. Resize to fit paper width (height is proportional — NEVER limited)
- * 2. Extract pixel data as RGBA Uint8Array
+ * 1. Resize to fit paper width
+ * 2. Apply vertical stretch to compensate for printer compression
+ * 3. Extract pixel data as RGBA Uint8Array
  *
  * @param imageUri - URI of the image to process
  * @param targetWidth - Paper width in dots (384 for 58mm, 576 for 80mm)
  * @param options.landscape - Rotate 90° before processing
  * @param options.sharpness - Sharpness level (unused currently, reserved)
- * @returns Pixel data with exact aspect ratio preserved
+ * @param options.verticalStretch - Vertical stretch factor (1.0 = no change, 1.25 = 25% taller)
+ *   Most cheap thermal printers compress vertically by ~20%.
+ *   Set to 1.2-1.3 to compensate → circles print as circles.
+ *   Default: 1.0 (no stretch)
+ * @returns Pixel data with vertical stretch applied
  */
 export async function processImageForPrint(
   imageUri: string,
   targetWidth: number,
-  options?: { landscape?: boolean; sharpness?: number },
+  options?: { landscape?: boolean; sharpness?: number; verticalStretch?: number },
 ): Promise<{ pixels: Uint8Array; width: number; height: number }> {
+  // Vertical stretch factor (1.0 = original, >1.0 = taller)
+  const vStretch = options?.verticalStretch ?? 1.0;
+
   // Step 1: Get original image dimensions first
   const original = await ImageManipulator.manipulateAsync(imageUri, [], {
     format: ImageManipulator.SaveFormat.PNG,
@@ -43,14 +51,17 @@ export async function processImageForPrint(
   }
 
   // Calculate exact target dimensions preserving aspect ratio
-  // After rotation: landscape swaps width/height
   const effectiveW = options?.landscape ? origH : origW;
   const effectiveH = options?.landscape ? origW : origH;
   const aspectRatio = effectiveH / effectiveW;
-  const targetHeight = Math.round(targetWidth * aspectRatio);
 
-  // Resize with EXPLICIT width AND height to guarantee aspect ratio
-  // Height is NOT limited — it matches the original proportions exactly
+  // Apply vertical stretch: multiply height by stretch factor
+  // This compensates for printers that compress vertically
+  // e.g., 384×384 with vStretch=1.25 → 384×480 → printer compresses → 384×384 output
+  const targetHeight = Math.round(targetWidth * aspectRatio * vStretch);
+
+  // Resize with explicit width AND height
+  // Height is NOT limited — includes original proportion + stretch
   actions.push({ resize: { width: targetWidth, height: targetHeight } });
 
   // Step 2: Resize (and optionally rotate) image

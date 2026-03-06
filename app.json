@@ -36,11 +36,29 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.MANAGE_EXTERNAL_STORAGE",
         "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS",
         "android.permission.SEND_SMS",
+        "android.permission.RECEIVE_SMS",
+        "android.permission.READ_SMS",
+        "android.permission.READ_PHONE_STATE",
+        "android.permission.CALL_PHONE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
+        "android.permission.WAKE_LOCK",
+        "android.permission.USB_PERMISSION",
+        "android.permission.FOREGROUND_SERVICE",
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.ACCESS_WIFI_STATE"
+        "android.permission.ACCESS_WIFI_STATE",
+        "android.permission.CHANGE_WIFI_STATE",
+        "android.permission.NFC",
+        "android.permission.REQUEST_INSTALL_PACKAGES"
       ],
       "blockedPermissions": []
     },
@@ -48,25 +66,29 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "HERNIPRINT memerlukan akses kamera untuk memindai dokumen."
+          "cameraPermission": "HERNIPRINT memerlukan akses kamera untuk memindai dokumen dan mengambil foto untuk dicetak.",
+          "microphonePermission": "HERNIPRINT memerlukan akses mikrofon untuk fitur perekaman."
         }
       ],
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "HERNIPRINT memerlukan lokasi untuk mencari printer Bluetooth terdekat."
+          "locationAlwaysAndWhenInUsePermission": "HERNIPRINT memerlukan lokasi untuk mencari printer Bluetooth terdekat.",
+          "locationAlwaysPermission": "HERNIPRINT memerlukan lokasi untuk mendeteksi perangkat printer.",
+          "locationWhenInUsePermission": "HERNIPRINT memerlukan lokasi untuk pencarian printer Bluetooth."
         }
       ],
       [
         "expo-contacts",
         {
-          "contactsPermission": "HERNIPRINT memerlukan akses kontak untuk mengisi data penerima."
+          "contactsPermission": "HERNIPRINT memerlukan akses kontak untuk mengisi data penerima pada resi dan label."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "HERNIPRINT memerlukan akses galeri untuk memilih gambar yang akan dicetak."
+          "photosPermission": "HERNIPRINT memerlukan akses galeri untuk memilih gambar yang akan dicetak.",
+          "cameraPermission": "HERNIPRINT memerlukan kamera untuk mengambil foto langsung untuk dicetak."
         }
       ],
       [
@@ -76,9 +98,9 @@
       [
         "react-native-ble-plx",
         {
-          "isBackgroundEnabled": false,
-          "modes": [],
-          "bluetoothAlwaysPermission": "HERNIPRINT memerlukan Bluetooth untuk menghubungkan printer."
+          "isBackgroundEnabled": true,
+          "modes": ["peripheral", "central"],
+          "bluetoothAlwaysPermission": "HERNIPRINT memerlukan Bluetooth untuk menghubungkan dan berkomunikasi dengan printer thermal."
         }
       ],
       [

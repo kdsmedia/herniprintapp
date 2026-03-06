@@ -1,13 +1,14 @@
 /**
  * PdfCapture — Hidden PDF renderer that converts PDF pages to images
- * 
- * Renders PDF off-screen using react-native-pdf, captures with react-native-view-shot,
- * then returns the image URI for thermal printing pipeline.
+ *
+ * Renders PDF off-screen using react-native-pdf, captures with
+ * react-native-view-shot's captureRef, then returns the image URI
+ * for thermal printing pipeline.
  */
 import React, { useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, findNodeHandle } from 'react-native';
 import Pdf from 'react-native-pdf';
-import ViewShot from 'react-native-view-shot';
+import { captureRef } from 'react-native-view-shot';
 
 export interface PdfCaptureRef {
   /** Convert a PDF page to an image. Returns the captured image URI. */
@@ -20,7 +21,7 @@ interface Props {
 }
 
 const PdfCapture = forwardRef<PdfCaptureRef, Props>(({ renderWidth }, ref) => {
-  const viewShotRef = useRef<ViewShot>(null);
+  const containerRef = useRef<View>(null);
   const [pdfSource, setPdfSource] = useState<{ uri: string } | null>(null);
   const [targetPage, setTargetPage] = useState(1);
   const resolveRef = useRef<((uri: string) => void) | null>(null);
@@ -32,16 +33,22 @@ const PdfCapture = forwardRef<PdfCaptureRef, Props>(({ renderWidth }, ref) => {
 
   const handleLoadComplete = useCallback(async (_numberOfPages: number) => {
     // Give PDF a moment to fully render after load callback
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 800));
 
     try {
-      if (viewShotRef.current) {
-        const uri = await (viewShotRef.current as any).capture();
+      if (containerRef.current) {
+        const uri = await captureRef(containerRef, {
+          format: 'png',
+          quality: 1.0,
+          result: 'tmpfile',
+        });
         if (resolveRef.current) {
           resolveRef.current(uri);
           resolveRef.current = null;
           rejectRef.current = null;
         }
+      } else {
+        throw new Error('Container ref not available');
       }
     } catch (e: any) {
       if (rejectRef.current) {
@@ -98,9 +105,9 @@ const PdfCapture = forwardRef<PdfCaptureRef, Props>(({ renderWidth }, ref) => {
 
   return (
     <View style={styles.offscreen} pointerEvents="none" collapsable={false}>
-      <ViewShot
-        ref={viewShotRef}
-        options={{ format: 'png', quality: 1.0, result: 'tmpfile' }}
+      <View
+        ref={containerRef}
+        collapsable={false}
         style={{ width: renderWidth, height: renderHeight, backgroundColor: '#fff' }}
       >
         <Pdf
@@ -114,7 +121,7 @@ const PdfCapture = forwardRef<PdfCaptureRef, Props>(({ renderWidth }, ref) => {
           enablePaging={false}
           horizontal={false}
         />
-      </ViewShot>
+      </View>
     </View>
   );
 });

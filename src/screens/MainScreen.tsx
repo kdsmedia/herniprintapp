@@ -9,9 +9,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-
 import Slider from '@react-native-community/slider';
 import QRCode from 'react-native-qrcode-svg';
 
@@ -330,7 +330,8 @@ export default function MainScreen() {
 
   // ─── RENDER ────────────────────────────────────────────
   return (
-    <SafeAreaView style={s.root} edges={['top']}>
+    <LinearGradient colors={['#1e1b4b', '#0f172a']} start={{ x: 1, y: 0 }} end={{ x: 0, y: 1 }} style={s.root}>
+    <SafeAreaView style={{ flex: 1 }} edges={['top']}>
       {/* ═══ HEADER ═══ */}
       <View style={s.header}>
         <View style={s.headerLeft}>
@@ -529,7 +530,13 @@ export default function MainScreen() {
         style={[s.fab, printing && { opacity: 0.5 }]}
         onPress={handlePrint} disabled={printing} activeOpacity={0.8}
       >
-        <Ionicons name={printing ? 'sync' : 'flash'} size={30} color="#fff" />
+        <LinearGradient
+          colors={['#4f46e5', '#6366f1', '#ec4899']}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={s.fabGradient}
+        >
+          <Ionicons name={printing ? 'sync' : 'flash'} size={30} color="#fff" />
+        </LinearGradient>
       </TouchableOpacity>
 
       <AdBanner />
@@ -611,12 +618,13 @@ export default function MainScreen() {
         </View>
       </Modal>
     </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 // ─── STYLES ───────────────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.bgDark },
+  root: { flex: 1 },
   // Header
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -686,7 +694,8 @@ const s = StyleSheet.create({
   ctrlBtnTxt: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted },
 
   // FAB
-  fab: { position: 'absolute', bottom: 50, alignSelf: 'center', width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', elevation: 20, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.5, shadowRadius: 24 },
+  fab: { position: 'absolute', bottom: 50, alignSelf: 'center', width: 72, height: 72, borderRadius: 36, overflow: 'hidden', elevation: 20, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.5, shadowRadius: 24 },
+  fabGradient: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
 
   // Modal
   modalOv: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center', padding: 20 },

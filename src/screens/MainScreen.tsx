@@ -2,7 +2,7 @@
  * MainScreen — Single-page layout matching the original HTML PWA exactly.
  * 4 top tabs, form area, paper preview, floating print button, connection modal.
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image, ScrollView,
   StyleSheet, Alert, Modal, ActivityIndicator,
@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import * as Print from 'expo-print';
+
 import Slider from '@react-native-community/slider';
 import QRCode from 'react-native-qrcode-svg';
 
@@ -27,6 +27,7 @@ import {
 } from '../utils/bluetooth';
 import AdBanner from '../components/AdBanner';
 import PrintProgress from '../components/PrintProgress';
+import PdfCapture, { PdfCaptureRef } from '../components/PdfCapture';
 
 type TabId = 'img' | 'pdf' | 'resi' | 'code';
 type ResiMode = 'resi' | 'label';
@@ -50,6 +51,9 @@ export default function MainScreen() {
     storeName, labelItems, addLabelItem, updateLabelItem, removeLabelItem,
     clearLabelItems, getLabelTotal,
   } = useApp();
+
+  // Refs
+  const pdfCaptureRef = useRef<PdfCaptureRef>(null);
 
   // UI State
   const [tab, setTab] = useState<TabId>('img');
@@ -205,21 +209,38 @@ export default function MainScreen() {
           Alert.alert('Pilih File', 'Unggah PDF terlebih dahulu.');
           return;
         }
-        startProgress('Membuka dokumen PDF...');
-        setPrintProgress(30);
-        try {
-          setPrintStatus('Mencetak via sistem...');
-          setPrintProgress(60);
-          await Print.printAsync({ uri: pdfUri });
-          finishProgress(true);
-        } catch (printError: any) {
-          if (!printError.message?.includes('cancel')) {
-            finishProgress(false, `Gagal: ${printError.message}`);
-          } else {
-            setShowProgress(false);
-            setPrinting(false);
-          }
+        startProgress('Mengkonversi PDF ke gambar...');
+        setPrintProgress(10);
+
+        // Step 1: Capture PDF page as image
+        if (!pdfCaptureRef.current) {
+          finishProgress(false, 'PDF converter tidak tersedia');
+          return;
         }
+
+        setPrintStatus('Merender halaman PDF...');
+        setPrintProgress(20);
+
+        const capturedUri = await pdfCaptureRef.current.capture(pdfUri, 1);
+        setPrintProgress(40);
+
+        // Step 2: Process captured image for thermal printing
+        setPrintStatus('Memproses gambar untuk printer...');
+        const { pixels, width, height } = await processImageForPrint(capturedUri, dots);
+        setPrintProgress(60);
+
+        // Step 3: Convert to ESC/POS and send
+        setPrintStatus('Mengkonversi ke ESC/POS...');
+        const escData = pixelsToEscPos(pixels, width, height, contrast);
+        setPrintProgress(70);
+        setPrintStage('sending');
+        setPrintStatus('Mengirim ke printer...');
+
+        await sendToPrinter(escData, (sent, total) => {
+          const pct = 70 + Math.round((sent / total) * 30);
+          setPrintProgress(pct);
+        });
+        finishProgress(true);
       }
       else if (tab === 'resi') {
         startProgress(resiMode === 'resi' ? 'Menyiapkan resi...' : 'Menyiapkan label...');
@@ -512,6 +533,9 @@ export default function MainScreen() {
       </TouchableOpacity>
 
       <AdBanner />
+
+      {/* ═══ HIDDEN PDF CAPTURE ═══ */}
+      <PdfCapture ref={pdfCaptureRef} renderWidth={PAPER[paperWidth].dots} />
 
       {/* ═══ PRINT PROGRESS ═══ */}
       <PrintProgress

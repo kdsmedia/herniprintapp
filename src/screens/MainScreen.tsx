@@ -5,7 +5,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, Image, ScrollView,
-  StyleSheet, Alert, Modal, ActivityIndicator,
+  StyleSheet, Alert, Modal, ActivityIndicator, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -791,16 +791,155 @@ export default function MainScreen() {
         {/* ═══ SETTINGS PANEL ═══ */}
         {settingsOpen && (
           <View style={s.settingsCard}>
+            {/* ── Pengaturan Toko ── */}
             <View style={s.settingsHeader}>
-              <Ionicons name="settings" size={16} color={COLORS.primaryLight} />
+              <Ionicons name="storefront" size={16} color={COLORS.primaryLight} />
               <Text style={s.settingsTitle}>PENGATURAN TOKO</Text>
             </View>
             <Text style={s.settingsLabel}>Nama Toko (muncul di struk)</Text>
             <TextInput style={s.input} value={storeName} onChangeText={setStoreName} placeholder="Nama toko Anda" placeholderTextColor="#64748b" />
             <Text style={s.settingsLabel}>Kontak Toko</Text>
             <TextInput style={s.input} value={storeContact} onChangeText={setStoreContact} placeholder="No. HP / Email" placeholderTextColor="#64748b" />
-            <View style={s.settingsAbout}>
-              <Text style={{ fontSize: 10, color: COLORS.textMuted, textAlign: 'center' }}>HERNIPRINT v2.0 — Solusi Cetak Thermal & Warna{'\n'}© 2026 Alto Media Indonesia</Text>
+
+            {/* ── Divider ── */}
+            <View style={s.settingsDivider} />
+
+            {/* ── Pengaturan Cetak Default ── */}
+            <View style={s.settingsHeader}>
+              <Ionicons name="print" size={16} color="#10b981" />
+              <Text style={[s.settingsTitle, { color: '#10b981' }]}>PENGATURAN CETAK</Text>
+            </View>
+            <Text style={s.settingsLabel}>Kertas Default</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {[58, 80].map((pw) => (
+                <TouchableOpacity
+                  key={pw}
+                  style={[s.settingsChip, paperWidth === pw && s.settingsChipActive]}
+                  onPress={() => setPaperWidth(pw as 58 | 80)}
+                >
+                  <Text style={[s.settingsChipTxt, paperWidth === pw && { color: '#fff' }]}>{pw}mm</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={s.settingsLabel}>Ketajaman Default</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Slider
+                minimumValue={1} maximumValue={10} step={1}
+                value={printSharpness} onValueChange={setPrintSharpness}
+                minimumTrackTintColor={COLORS.primary}
+                maximumTrackTintColor="rgba(255,255,255,0.15)"
+                thumbTintColor={COLORS.primaryLight}
+                style={{ flex: 1, height: 36 }}
+              />
+              <Text style={{ fontSize: 12, fontWeight: '800', color: COLORS.primaryLight }}>{printSharpness}/10</Text>
+            </View>
+
+            {/* ── Divider ── */}
+            <View style={s.settingsDivider} />
+
+            {/* ── Hubungi Kami ── */}
+            <View style={s.settingsHeader}>
+              <Ionicons name="chatbubbles" size={16} color="#38bdf8" />
+              <Text style={[s.settingsTitle, { color: '#38bdf8' }]}>HUBUNGI KAMI</Text>
+            </View>
+            <TouchableOpacity
+              style={s.settingsLink}
+              onPress={() => {
+                Linking.openURL('https://t.me/altomediaindonesia');
+              }}
+            >
+              <View style={[s.settingsLinkIcon, { backgroundColor: 'rgba(0,136,204,0.15)' }]}>
+                <Ionicons name="paper-plane" size={16} color="#0088cc" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.settingsLinkTitle}>Telegram</Text>
+                <Text style={s.settingsLinkSub}>@altomediaindonesia</Text>
+              </View>
+              <Ionicons name="open-outline" size={14} color={COLORS.textMuted} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.settingsLink}
+              onPress={() => {
+                Linking.openURL('https://instagram.com/altomediaindonesia');
+              }}
+            >
+              <View style={[s.settingsLinkIcon, { backgroundColor: 'rgba(225,48,108,0.15)' }]}>
+                <Ionicons name="logo-instagram" size={16} color="#E1306C" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.settingsLinkTitle}>Instagram</Text>
+                <Text style={s.settingsLinkSub}>@altomediaindonesia</Text>
+              </View>
+              <Ionicons name="open-outline" size={14} color={COLORS.textMuted} />
+            </TouchableOpacity>
+
+            {/* ── Divider ── */}
+            <View style={s.settingsDivider} />
+
+            {/* ── Tentang Aplikasi ── */}
+            <View style={s.settingsHeader}>
+              <Ionicons name="information-circle" size={16} color="#a78bfa" />
+              <Text style={[s.settingsTitle, { color: '#a78bfa' }]}>TENTANG APLIKASI</Text>
+            </View>
+            <View style={s.settingsAboutBox}>
+              <Text style={{ fontSize: 18, fontWeight: '900', color: '#fff', textAlign: 'center' }}>🖨️ HERNIPRINT</Text>
+              <Text style={{ fontSize: 10, color: COLORS.textMuted, textAlign: 'center', marginTop: 4 }}>
+                Versi 2.0.0 (Build 2)
+              </Text>
+              <Text style={{ fontSize: 10, color: COLORS.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 16 }}>
+                Aplikasi pencetakan profesional untuk printer thermal (Bluetooth) dan printer besar (WiFi/USB).{'\n'}
+                Mendukung cetak gambar, PDF, struk/resi, label, QR Code, dan Barcode.
+              </Text>
+              <Text style={{ fontSize: 10, color: COLORS.primaryLight, textAlign: 'center', marginTop: 8, fontWeight: '700' }}>
+                © 2026 Alto Media Indonesia
+              </Text>
+            </View>
+
+            {/* ── Divider ── */}
+            <View style={s.settingsDivider} />
+
+            {/* ── Kebijakan Privasi ── */}
+            <View style={s.settingsHeader}>
+              <Ionicons name="shield-checkmark" size={16} color="#22c55e" />
+              <Text style={[s.settingsTitle, { color: '#22c55e' }]}>KEBIJAKAN PRIVASI</Text>
+            </View>
+            <View style={s.settingsTextBox}>
+              <Text style={s.settingsBodyTxt}>
+                HERNIPRINT menghormati privasi pengguna. Kami mengumpulkan data minimal yang diperlukan untuk fungsi aplikasi:{'\n\n'}
+                • <Text style={{ fontWeight: '700' }}>Bluetooth & Lokasi</Text> — Diperlukan untuk mendeteksi dan menghubungkan printer thermal.{'\n'}
+                • <Text style={{ fontWeight: '700' }}>Penyimpanan</Text> — Untuk mengakses file gambar dan PDF yang akan dicetak.{'\n'}
+                • <Text style={{ fontWeight: '700' }}>Kamera</Text> — Untuk mengambil foto langsung dan memindai QR Code.{'\n'}
+                • <Text style={{ fontWeight: '700' }}>Iklan</Text> — Kami menggunakan Google AdMob untuk menampilkan iklan. Google mungkin mengumpulkan data sesuai kebijakan mereka.{'\n\n'}
+                Kami <Text style={{ fontWeight: '700' }}>tidak</Text> menyimpan, mengirim, atau membagikan dokumen/gambar yang Anda cetak ke server manapun. Semua pemrosesan dilakukan di perangkat Anda.
+              </Text>
+            </View>
+
+            {/* ── Divider ── */}
+            <View style={s.settingsDivider} />
+
+            {/* ── Disclaimer ── */}
+            <View style={s.settingsHeader}>
+              <Ionicons name="alert-circle" size={16} color="#f59e0b" />
+              <Text style={[s.settingsTitle, { color: '#f59e0b' }]}>DISCLAIMER</Text>
+            </View>
+            <View style={s.settingsTextBox}>
+              <Text style={s.settingsBodyTxt}>
+                Aplikasi ini disediakan "apa adanya" tanpa jaminan apapun. Alto Media Indonesia tidak bertanggung jawab atas:{'\n\n'}
+                • Kerusakan printer akibat penggunaan aplikasi.{'\n'}
+                • Kegagalan cetak karena masalah koneksi atau kompatibilitas printer.{'\n'}
+                • Hasil cetak yang tidak sesuai ekspektasi.{'\n'}
+                • Kerugian bisnis akibat penggunaan aplikasi.{'\n\n'}
+                Pengguna bertanggung jawab penuh atas penggunaan aplikasi ini. Dengan menggunakan HERNIPRINT, Anda menyetujui syarat dan ketentuan ini.
+              </Text>
+            </View>
+
+            {/* ── Versi & Lisensi ── */}
+            <View style={s.settingsFooter}>
+              <Text style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', textAlign: 'center', lineHeight: 14 }}>
+                HERNIPRINT v2.0.0 • Dibuat dengan ❤️ di Indonesia{'\n'}
+                © 2026 Alto Media Indonesia • Seluruh hak cipta dilindungi{'\n'}
+                Powered by React Native & Expo
+              </Text>
             </View>
           </View>
         )}
@@ -1115,7 +1254,19 @@ const s = StyleSheet.create({
   totalBox: { backgroundColor: 'rgba(79,70,229,0.2)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(79,70,229,0.3)', padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 
   // Settings panel
-  settingsCard: { backgroundColor: COLORS.bgCard, borderRadius: 20, borderWidth: 1, borderColor: COLORS.bgCardBorder, padding: 16, gap: 10 },
+  settingsCard: { backgroundColor: COLORS.bgCard, borderRadius: 20, borderWidth: 1, borderColor: COLORS.bgCardBorder, padding: 16, gap: 10, marginBottom: 16 },
+  settingsDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.08)', marginVertical: 4 },
+  settingsChip: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.3)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },
+  settingsChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primaryLight },
+  settingsChipTxt: { fontSize: 12, fontWeight: '700', color: COLORS.textMuted },
+  settingsLink: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 4 },
+  settingsLinkIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  settingsLinkTitle: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  settingsLinkSub: { fontSize: 10, color: COLORS.textMuted, marginTop: 1 },
+  settingsAboutBox: { backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 14, padding: 16, alignItems: 'center' },
+  settingsTextBox: { backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: 14 },
+  settingsBodyTxt: { fontSize: 10, color: COLORS.textSecondary, lineHeight: 16 },
+  settingsFooter: { paddingVertical: 8 },
   settingsHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
   settingsTitle: { fontSize: 10, fontWeight: '800', color: COLORS.primaryLight, letterSpacing: 1 },
   settingsLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textSecondary, marginTop: 4 },
